@@ -1,8 +1,11 @@
 // Tornang v2.0.0 — banco de dados
 const path = require('path');
 const Database = require('better-sqlite3');
+const fs = require('fs');
 
-const db = new Database(path.join(__dirname, 'tornang.db'));
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+fs.mkdirSync(DATA_DIR, { recursive: true });
+const db = new Database(path.join(DATA_DIR, 'tornang.db'));
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
 
