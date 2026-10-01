@@ -543,10 +543,7 @@ body { background: var(--flex-bg); color: var(--flex-text); }
 
 /* --- Sidebar: teal + expand on hover (overlay) --- */
 .rail { background: var(--flex-sidebar); }
-.rail:hover { width: 220px; align-items: stretch; padding: 10px 8px; }
-.rail:hover .rail-item { justify-content: flex-start; }
-.rail:hover .rail-label { display: inline; }
-.rail:hover .rail-logo { align-self: flex-start; }
+
 .rail-logo { background: rgba(255,255,255,.1); }
 .rail-item.active { background: var(--flex-accent); }
 .rail-item:hover { background: rgba(255,255,255,.12); }
@@ -647,8 +644,17 @@ body { background: var(--flex-bg); color: var(--flex-text); }
 .recent-list li { padding: 14px 0; }
 .recent-card .muted { padding: 24px 0; text-align: center; }
 
-/* Topbar fixa (não some ao rolar) */
-.topbar { position: sticky; top: 0; z-index: 50; }
+/* Topbar fixa e full-bleed — escapa de qualquer container */
+.topbar {
+  position: fixed;
+  top: 0;
+  left: 64px;   /* começa depois do rail */
+  right: 0;
+  z-index: 50;
+  max-width: none;
+  margin: 0;
+}
+.dash-wrap, .dash-main, main { padding-top: 88px; } /* espaço para a topbar fixa */
 
 @media (max-width: 900px) {
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -664,3 +670,22 @@ body { background: var(--flex-bg); color: var(--flex-text); }
 
 .loc-card.clickable { cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
 .loc-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(15,23,42,.10); }
+
+/* Tooltip no hover — rail volta a ser só ícones */
+.rail-item { position: relative; }
+.rail-item:hover .rail-label {
+  display: inline;
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  background: #0B2E2A;
+  color: #fff;
+  padding: 5px 10px;
+  border-radius: 8px;
+  font-size: 13px;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0,0,0,.25);
+  z-index: 200;
+  pointer-events: none;
+}
