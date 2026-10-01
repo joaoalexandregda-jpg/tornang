@@ -76,10 +76,22 @@ app.post('/api/signup/start', (req, res) => {
   db.prepare('DELETE FROM email_verifications WHERE email = ?').run(emailNorm);
   db.prepare('INSERT INTO email_verifications (email, code_hash, password_hash, expires_at) VALUES (?,?,?,?)')
     .run(emailNorm, codeHash, bcrypt.hashSync(password, 10), expires);
-  // TODO: quando o SMTP for configurado, este código será enviado por e-mail
-  console.log('=====================================');
   console.log('Código de verificação para ' + emailNorm + ': ' + code + ' (válido por 10 minutos)');
-  console.log('=====================================');
+  if (process.env.SMTP_HOST) {
+    const nodemailer = require('nodemailer');
+    const transporter = nodemailer.createTransport({
+      host: process.env.SMTP_HOST,
+      port: Number(process.env.SMTP_PORT || 587),
+      secure: process.env.SMTP_SECURE === 'true',
+      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
+    });
+    transporter.sendMail({
+      from: process.env.SMTP_FROM || process.env.SMTP_USER,
+      to: emailNorm,
+      subject: 'Tornang — Código de verificação',
+      text: `Seu código de verificação é: ${code}\n\nVálido por 10 minutos.`
+    }).catch(err => console.error('Falha ao enviar e-mail:', err.message));
+  }
   res.json({ ok: true, message: 'Código enviado para ' + emailNorm });
 });
 
