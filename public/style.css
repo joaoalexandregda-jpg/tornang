@@ -690,5 +690,18 @@ body { background: var(--flex-bg); color: var(--flex-text); }
   pointer-events: none;
 }
 
-/* Espaço universal para a topbar fixa — vale para todas as páginas */
-body { padding-top: 88px; }
+/* ===== v4.2 — Correção final da topbar fixa (baseada no HTML real) ===== */
+
+/* account, company e profile: o painel é filho direto do body.
+   !important é obrigatório — o HTML tem style="margin:0 auto" inline */
+body > .panel { margin-top: 88px !important; }
+
+/* manager: as abas limpam a topbar; os painéis fluem logo depois delas */
+body > .tabs { margin-top: 88px; }
+body > .tabs ~ .panel { margin-top: 16px !important; }
+
+/* profile.html não tem rail — a topbar deve encostar na borda esquerda */
+body:not(.with-rail) .topbar { left: 0; }
+
+/* Devolve o espaço da topbar fixa no dashboard e no main (locations) */
+.dash-wrap, .dash-main, main { padding-top: 88px; }
