@@ -654,7 +654,7 @@ body { background: var(--flex-bg); color: var(--flex-text); }
   max-width: none;
   margin: 0;
 }
-.dash-wrap, .dash-main, main { padding-top: 88px; } /* espaço para a topbar fixa */
+
 
 @media (max-width: 900px) {
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -690,7 +690,5 @@ body { background: var(--flex-bg); color: var(--flex-text); }
   pointer-events: none;
 }
 
-/* Espaço para a topbar fixa em todas as páginas */
-.wrap, .container, .page, .content, .main-content {
-  padding-top: 88px !important;
-}
+/* Espaço universal para a topbar fixa — vale para todas as páginas */
+body { padding-top: 88px; }
