@@ -689,3 +689,8 @@ body { background: var(--flex-bg); color: var(--flex-text); }
   z-index: 200;
   pointer-events: none;
 }
+
+/* Espaço para a topbar fixa em todas as páginas */
+.wrap, .container, .page, .content, .main-content {
+  padding-top: 88px !important;
+}
