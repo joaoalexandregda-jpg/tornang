@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard — Tornang</title>
+<title>Dashboard — Flex</title>
 <link rel="stylesheet" href="style.css">
 </head>
 <body class="with-rail">
@@ -28,7 +28,6 @@
 <main class="content">
   <div class="topbar">
     <div class="topbar-left">
-      <button class="rail-toggle" id="railToggle" title="Expandir/retrair">☰</button>
       <h1>Dashboard</h1>
     </div>
     <div class="topbar-right">
@@ -128,10 +127,7 @@ function renderRail() {
   });
 }
 
-document.getElementById('railToggle').addEventListener('click', () => {
-  rail.classList.toggle('expanded');
-  document.body.classList.toggle('rail-open');
-});
+
 
 function renderDash(dash) {
   const totals = dash.locations.reduce((acc, l) => ({ active: acc.active + l.active_projects, urgent: acc.urgent + l.urgent, overdue: acc.overdue + l.overdue }), { active: 0, urgent: 0, overdue: 0 });
