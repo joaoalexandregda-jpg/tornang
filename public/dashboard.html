@@ -131,15 +131,14 @@ function renderRail() {
 
 function renderDash(dash) {
   const totals = dash.locations.reduce((acc, l) => ({ active: acc.active + l.active_projects, urgent: acc.urgent + l.urgent, overdue: acc.overdue + l.overdue }), { active: 0, urgent: 0, overdue: 0 });
-  document.getElementById('kpiRow').innerHTML = `
-    <div class="kpi ok"><b>${totals.active}</b><span>Folhas em produção</span></div>
-    <div class="kpi ${totals.urgent ? 'warn' : ''}"><b>${totals.urgent}</b><span>Folhas urgentes hoje</span></div>
-    <div class="kpi ${totals.overdue ? 'danger' : ''}"><b>${totals.overdue}</b><span>Folhas com atraso</span></div>
-    <div class="kpi"><b>${dash.locations.length}</b><span>Locais</span></div>`;
+document.getElementById('kpiRow').innerHTML = `
+  <div class="kpi ok"><b>${totals.active}</b><span>Folhas em produção</span></div>
+  <div class="kpi ${totals.urgent ? 'warn' : ''}"><b>${totals.urgent}</b><span>Folhas urgentes hoje</span></div>
+  <div class="kpi ${totals.overdue ? 'danger' : ''}"><b>${totals.overdue}</b><span>Folhas com atraso</span></div>`;
 
   const grid = document.getElementById('dashGrid');
   grid.innerHTML = dash.locations.map(l => `
-    <div class="loc-card">
+    <div class="loc-card clickable" data-id="${l.id}">
       <div class="loc-card-head">
         ${locThumb(l, 'loc-thumb')}
         <div><h3>${esc(l.name)}</h3><p class="muted" style="margin:0;font-size:12px">${esc(l.address || 'Sem endereço')}</p></div>
@@ -155,6 +154,7 @@ function renderDash(dash) {
       <button class="btn primary small open-loc" data-id="${l.id}">Abrir local</button>
     </div>`).join('') || '<p class="muted">Nenhum local encontrado.</p>';
   grid.querySelectorAll('.open-loc').forEach(b => b.addEventListener('click', () => location.href = 'manager.html?loc=' + b.dataset.id));
+grid.querySelectorAll('.loc-card.clickable').forEach(c => c.addEventListener('click', () => location.href = 'manager.html?loc=' + c.dataset.id));
 
   const rl = document.getElementById('recentList');
   rl.innerHTML = (dash.recent || []).map(r => `

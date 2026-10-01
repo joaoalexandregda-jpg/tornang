@@ -654,3 +654,13 @@ body { background: var(--flex-bg); color: var(--flex-text); }
   .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .dash-wrap, .dash-main, main { padding: 24px 20px 48px; }
 }
+
+#kpiRow {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+
+.loc-card.clickable { cursor: pointer; transition: transform .15s ease, box-shadow .15s ease; }
+.loc-card.clickable:hover { transform: translateY(-2px); box-shadow: 0 6px 20px rgba(15,23,42,.10); }
