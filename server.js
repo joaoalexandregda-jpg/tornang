@@ -6,6 +6,9 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const multer = require('multer');
 const db = require('./database');
+const fs = require('fs');
+const DATA_DIR = process.env.DATA_DIR || __dirname;
+fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
 
 
 const app = express();
@@ -632,7 +635,7 @@ app.put('/api/projects/:id/route', auth, managerOnly, (req, res) => {
 const uploadDir = path.join(__dirname, 'uploads');
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 const storage = multer.diskStorage({
-  destination: (req, file, cb) => cb(null, uploadDir),
+  destination: (req, file, cb) => cb(null, path.join(DATA_DIR, 'uploads')),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + crypto.randomBytes(4).toString('hex') + path.extname(file.originalname))
 });
 const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } });
