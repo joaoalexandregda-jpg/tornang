@@ -632,8 +632,8 @@ app.put('/api/projects/:id/route', auth, managerOnly, (req, res) => {
 });
 
 // ---------- Documentos ----------
-const uploadDir = path.join(__dirname, 'uploads');
-if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+const uploadDir = path.join(DATA_DIR, 'uploads');
+fs.mkdirSync(uploadDir, { recursive: true });
 const storage = multer.diskStorage({
   destination: (req, file, cb) => cb(null, path.join(DATA_DIR, 'uploads')),
   filename: (req, file, cb) => cb(null, Date.now() + '-' + crypto.randomBytes(4).toString('hex') + path.extname(file.originalname))
