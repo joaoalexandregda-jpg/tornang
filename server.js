@@ -9,6 +9,30 @@ const db = require('./database');
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
 
+async function sendEmail(to, subject, text) {
+  if (process.env.BREVO_API_KEY) {
+    try {
+      const resp = await fetch('https://api.brevo.com/v3/smtp/email', {
+        method: 'POST',
+        headers: {
+          'api-key': process.env.BREVO_API_KEY,
+          'content-type': 'application/json',
+          'accept': 'application/json'
+        },
+        body: JSON.stringify({
+          sender: { email: process.env.SMTP_FROM || process.env.SMTP_USER },
+          to: [{ email: to }],
+          subject,
+          textContent: text
+        })
+      });
+      if (!resp.ok) console.error('Falha ao enviar e-mail (API):', resp.status, await resp.text());
+      return;
+    } catch (err) {
+      console.error('Falha ao enviar e-mail (API):', err.message);
+    }
+  }
+}
 
 const app = express();
 app.use(express.json());
@@ -77,21 +101,7 @@ app.post('/api/signup/start', (req, res) => {
   db.prepare('INSERT INTO email_verifications (email, code_hash, password_hash, expires_at) VALUES (?,?,?,?)')
     .run(emailNorm, codeHash, bcrypt.hashSync(password, 10), expires);
   console.log('Código de verificação para ' + emailNorm + ': ' + code + ' (válido por 10 minutos)');
-  if (process.env.SMTP_HOST) {
-    const nodemailer = require('nodemailer');
-    const transporter = nodemailer.createTransport({
-      host: process.env.SMTP_HOST,
-      port: Number(process.env.SMTP_PORT || 587),
-      secure: process.env.SMTP_SECURE === 'true',
-      auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-    });
-    transporter.sendMail({
-      from: process.env.SMTP_FROM || process.env.SMTP_USER,
-      to: emailNorm,
-      subject: 'Tornang — Código de verificação',
-      text: `Seu código de verificação é: ${code}\n\nVálido por 10 minutos.`
-    }).catch(err => console.error('Falha ao enviar e-mail:', err.message));
-  }
+  sendEmail(emailNorm, 'Flex — Código de verificação', `Seu código de verificação é: ${code}\n\nVálido por 10 minutos.`);
   res.json({ ok: true, message: 'Código enviado para ' + emailNorm });
 });
 
@@ -178,21 +188,7 @@ app.post('/api/forgot-password', (req, res) => {
     console.log('=== Link de redefinição de senha ===');
     console.log(link);
     console.log('=====================================');
-    if (process.env.SMTP_HOST) {
-      const nodemailer = require('nodemailer');
-      const transporter = nodemailer.createTransport({
-        host: process.env.SMTP_HOST,
-        port: Number(process.env.SMTP_PORT || 587),
-        secure: process.env.SMTP_SECURE === 'true',
-        auth: { user: process.env.SMTP_USER, pass: process.env.SMTP_PASS }
-      });
-      transporter.sendMail({
-        from: process.env.SMTP_FROM || process.env.SMTP_USER,
-        to: user.email,
-        subject: 'Tornang — Redefinição de senha',
-        text: `Use este link para redefinir sua senha (válido por 1 hora):\n\n${link}`
-      }).catch(err => console.error('Falha ao enviar e-mail:', err.message));
-    }
+    sendEmail(user.email, 'Flex — Redefinição de senha', `Use este link para redefinir sua senha (válido por 1 hora):\n\n${link}`);
   }
   res.json({ ok: true, message: 'Se o e-mail existir, você receberá um link de redefinição (válido por 1 hora).' });
 });
