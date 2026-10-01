@@ -1,0 +1,285 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerenciar Locais — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="with-rail">
+<aside class="rail" id="rail">
+  <div class="rail-logo" id="railLogo">🏭</div>
+  <nav class="rail-nav">
+    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <div class="rail-sep"></div>
+    <div id="locIcons"></div>
+    <div class="rail-sep"></div>
+    <a class="rail-item active" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+  </nav>
+  <div class="flyout" id="flyout" hidden>
+    <div class="flyout-title" id="flyoutTitle"></div>
+    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
+    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#">👥 Grupos de usuários</a>
+  </div>
+</aside>
+
+<main class="content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="rail-toggle" id="railToggle" title="Expandir/retrair">☰</button>
+      <h1>Gerenciar Locais</h1>
+    </div>
+    <div class="topbar-right">
+      <div class="bell-wrap">
+        <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+        <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
+      </div>
+      <div class="menu-wrap">
+        <button class="chip" id="chipBtn">
+          <span class="avatar" id="chipAvatar"></span>
+          <span class="chip-name" id="chipName"></span>
+        </button>
+        <div class="dropdown" id="userMenu" hidden>
+          <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
+          <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
+          <hr>
+          <button class="dropdown-item danger" id="menuLogout">Sair</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="panel" style="max-width:860px">
+    <div class="loc-admin-form">
+      <h3 id="formTitle">Novo local</h3>
+      <form id="locForm">
+        <label>Nome *<input type="text" id="lName" required></label>
+        <label>Endereço<input type="text" id="lAddress"></label>
+        <label>Imagem <span class="muted">(opcional — vira o ícone no menu)</span><input type="file" id="lImage" accept="image/png,image/jpeg,image/webp"></label>
+        <div class="modal-actions">
+          <button type="button" class="btn ghost" id="locReset" hidden>Cancelar edição</button>
+          <button type="submit" class="btn primary" id="locSubmit">Criar local</button>
+        </div>
+      </form>
+      <p id="locMsg" class="muted" style="margin-top:10px"></p>
+    </div>
+
+    <h3 class="dash-section-title">Locais da empresa</h3>
+    <div class="loc-admin-list" id="locList"></div>
+  </div>
+</main>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'index.html';
+let user = JSON.parse(localStorage.getItem('user') || '{}');
+if (user.role !== 'manager') location.href = 'worker.html';
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+function setAvatar(el, withDot) {
+  el.innerHTML = (user.avatar ? `<img src="${esc(user.avatar)}" alt="Foto de perfil">` : `<span class="avatar-initial">${esc((user.name || '?').trim()[0].toUpperCase())}</span>`) + (withDot ? '<span class="status-dot"></span>' : '');
+}
+setAvatar(document.getElementById('chipAvatar'), true);
+document.getElementById('chipName').textContent = user.name || '';
+
+let locations = [];
+let editingId = null, pendingImage = null;
+const rail = document.getElementById('rail');
+const flyout = document.getElementById('flyout');
+let hoverTimer = null, hideTimer = null;
+
+function locThumb(l, cls) {
+  return `<span class="${cls}">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span>`;
+}
+function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(() => { flyout.hidden = true; }, 900); }
+function showFlyout(l, item) {
+  document.getElementById('flyoutTitle').textContent = l.name;
+  document.getElementById('flyProjects').href = 'manager.html?loc=' + l.id + '&tab=projects';
+  document.getElementById('flySections').href = 'manager.html?loc=' + l.id + '&tab=sections';
+  document.getElementById('flyGroups').href = 'manager.html?loc=' + l.id + '&tab=workers';
+  flyout.style.top = item.offsetTop + 'px';
+  flyout.style.left = (rail.offsetWidth - 4) + 'px';
+  flyout.hidden = false;
+}
+flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+flyout.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+
+function renderRail() {
+  const box = document.getElementById('locIcons');
+  box.innerHTML = '';
+  locations.forEach(l => {
+    const b = document.createElement('button');
+    b.className = 'rail-item loc';
+    b.title = l.name;
+    b.innerHTML = locThumb(l, 'rail-ico') + `<span class="rail-label">${esc(l.name)}</span>`;
+    b.addEventListener('mouseenter', () => { clearTimeout(hideTimer); clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showFlyout(l, b), 200); });
+    b.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); scheduleHide(); });
+    b.addEventListener('click', () => showFlyout(l, b));
+    box.appendChild(b);
+  });
+}
+document.getElementById('railToggle').addEventListener('click', () => {
+  rail.classList.toggle('expanded');
+  document.body.classList.toggle('rail-open');
+});
+
+function renderList() {
+  const box = document.getElementById('locList');
+  box.innerHTML = locations.map(l => `
+    <div class="loc-admin-card">
+      ${locThumb(l, 'loc-thumb')}
+      <div class="loc-row-main"><b>${esc(l.name)}</b><span>${esc(l.address || 'Sem endereço')}</span></div>
+      <button type="button" class="btn ghost small" data-edit="${l.id}">Editar</button>
+      <button type="button" class="btn ghost small" data-del="${l.id}" style="color:#ef4444">Excluir</button>
+    </div>`).join('') || '<p class="muted">Nenhum local.</p>';
+  box.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
+    const l = locations.find(x => x.id == b.dataset.edit);
+    editingId = l.id; pendingImage = null;
+    document.getElementById('lName').value = l.name || '';
+    document.getElementById('lAddress').value = l.address || '';
+    document.getElementById('formTitle').textContent = 'Editar local';
+    document.getElementById('locSubmit').textContent = 'Salvar alterações';
+    document.getElementById('locReset').hidden = false;
+    document.getElementById('locMsg').textContent = '';
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  }));
+  box.querySelectorAll('[data-del]').forEach(b => b.addEventListener('click', async () => {
+    const l = locations.find(x => x.id == b.dataset.del);
+    if (!confirm(`Excluir o local "${l.name}"? Esta ação não pode ser desfeita.`)) return;
+    try {
+      await api('/api/locations/' + l.id, { method: 'DELETE' });
+      locations = locations.filter(x => x.id != l.id);
+      renderList(); renderRail();
+      document.getElementById('locMsg').textContent = 'Local excluído.';
+    } catch (err) { document.getElementById('locMsg').textContent = err.message; }
+  }));
+}
+
+function resetForm() {
+  editingId = null; pendingImage = null;
+  document.getElementById('locForm').reset();
+  document.getElementById('formTitle').textContent = 'Novo local';
+  document.getElementById('locSubmit').textContent = 'Criar local';
+  document.getElementById('locReset').hidden = true;
+  document.getElementById('locMsg').textContent = '';
+}
+document.getElementById('locReset').addEventListener('click', resetForm);
+
+document.getElementById('lImage').addEventListener('change', () => {
+  const f = document.getElementById('lImage').files[0];
+  document.getElementById('lImage').value = '';
+  if (!f) return;
+  if (f.size > 2 * 1024 * 1024) { document.getElementById('locMsg').textContent = 'Imagem muito grande (máximo 2 MB).'; return; }
+  const reader = new FileReader();
+  reader.onload = () => { pendingImage = reader.result; document.getElementById('locMsg').textContent = 'Imagem pronta — salve para aplicar.'; };
+  reader.readAsDataURL(f);
+});
+
+document.getElementById('locForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('locMsg');
+  try {
+    let loc;
+    const body = JSON.stringify({
+      name: document.getElementById('lName').value.trim(),
+      address: document.getElementById('lAddress').value.trim()
+    });
+    if (editingId) {
+      ({ location: loc } = await api('/api/locations/' + editingId, { method: 'PUT', body }));
+    } else {
+      ({ location: loc } = await api('/api/locations', { method: 'POST', body }));
+    }
+    if (pendingImage) {
+      ({ location: loc } = await api('/api/locations/' + loc.id + '/image', { method: 'POST', body: JSON.stringify({ image: pendingImage }) }));
+    }
+    const i = locations.findIndex(x => x.id === loc.id);
+    if (i >= 0) locations[i] = loc; else locations.push(loc);
+    renderList(); renderRail(); resetForm();
+    msg.textContent = 'Local salvo.';
+  } catch (err) { msg.textContent = err.message; }
+});
+
+(async () => {
+  try {
+    const [{ company }, { locations: locs }] = await Promise.all([api('/api/company'), api('/api/locations')]);
+    const logoEl = document.getElementById('railLogo');
+    if (company.logo) logoEl.innerHTML = `<img src="/${esc(company.logo)}" alt="">`;
+    locations = locs;
+    renderRail(); renderList();
+  } catch (err) { alert(err.message); }
+})();
+
+document.getElementById('driversBtn').addEventListener('click', () => alert('Gerenciar Motoristas chega em uma próxima etapa.'));
+
+// ===== Dropdown e fechamento =====
+const userMenu = document.getElementById('userMenu');
+document.getElementById('chipBtn').addEventListener('click', (e) => { e.stopPropagation(); userMenu.hidden = !userMenu.hidden; });
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.menu-wrap')) userMenu.hidden = true;
+  if (!e.target.closest('.rail') && !e.target.closest('.flyout')) flyout.hidden = true;
+});
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { userMenu.hidden = true; flyout.hidden = true; } });
+userMenu.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
+document.getElementById('menuLogout').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear();
+  location.href = 'index.html';
+});
+
+// ===== Sino: notificações reais =====
+(async () => {
+  try {
+    const { notifications, unread } = await api('/api/notifications');
+    const badge = document.getElementById('bellBadge');
+    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
+    const panel = document.getElementById('notifPanel');
+    if (panel && notifications.length) {
+      panel.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.read ? '' : 'unread'}">
+          <b>${esc(n.title)}</b>
+          <p>${esc(n.body || '')}</p>
+          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+        </div>`).join('');
+      panel.addEventListener('click', async () => {
+        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
+        if (badge) { badge.textContent = '0'; badge.hidden = true; }
+      }, { once: true });
+    }
+  } catch (e) {}
+})();
+
+// ===== Sino: notificações reais =====
+(async () => {
+  try {
+    const { notifications, unread } = await api('/api/notifications');
+    const badge = document.getElementById('bellBadge');
+    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
+    const panel = document.getElementById('notifPanel');
+    if (panel && notifications.length) {
+      panel.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.read ? '' : 'unread'}">
+          <b>${esc(n.title)}</b>
+          <p>${esc(n.body || '')}</p>
+          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+        </div>`).join('');
+      panel.addEventListener('click', async () => {
+        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
+        if (badge) { badge.textContent = '0'; badge.hidden = true; }
+      }, { once: true });
+    }
+  } catch (e) {}
+})();
+
+</script>
+</body>
+</html>

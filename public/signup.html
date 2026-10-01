@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Criar conta — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <h1>Criar conta</h1>
+    <div class="step-indicator"><span id="ind1" class="on"></span><span id="ind2"></span><span id="ind3"></span></div>
+
+    <!-- Etapa 1: credenciais -->
+    <div id="step1" class="step active">
+      <p class="muted">Etapa 1 de 3 — Suas credenciais</p>
+      <form id="credForm">
+        <label>E-mail<input type="email" id="email" required autocomplete="email"></label>
+        <label>Definir senha<input type="password" id="password" required minlength="4"></label>
+        <label>Confirmar senha<input type="password" id="confirm" required minlength="4"></label>
+        <button type="submit" class="btn primary">Continuar</button>
+      </form>
+    </div>
+
+    <!-- Etapa 2: verificação -->
+    <div id="step2" class="step">
+      <p class="muted">Etapa 2 de 3 — Verificação</p>
+      <p style="font-size:14px;margin-bottom:12px">Enviamos um código de 6 dígitos para <b id="emailShown"></b>. Digite-o abaixo.</p>
+      <form id="verifyForm">
+        <label>Código de verificação<input type="text" id="code" class="code-input" maxlength="6" inputmode="numeric" pattern="[0-9]*" required></label>
+        <button type="submit" class="btn primary">Verificar</button>
+        <button type="button" class="btn ghost" id="resendBtn" style="width:100%;margin-top:8px">Reenviar código</button>
+      </form>
+    </div>
+
+    <!-- Etapa 3: perfil -->
+    <div id="step3" class="step">
+      <p class="muted">Etapa 3 de 3 — Perfil da empresa</p>
+      <form id="profileForm">
+        <label>Nome da empresa<input type="text" id="company_name" required></label>
+        <button type="submit" class="btn primary">Criar conta</button>
+      </form>
+    </div>
+
+    <p id="error" class="error"></p>
+    <div class="auth-links"><a href="login-company.html">← Voltar ao login</a></div>
+  </div>
+</div>
+<script>
+let signupEmail = '';
+const errorEl = document.getElementById('error');
+
+function showStep(n) {
+  [1, 2, 3].forEach(i => {
+    document.getElementById('step' + i).classList.toggle('active', i === n);
+    document.getElementById('ind' + i).classList.toggle('on', i <= n);
+  });
+  errorEl.textContent = '';
+}
+
+async function post(path, body) {
+  const res = await fetch(path, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+
+document.getElementById('credForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const password = document.getElementById('password').value;
+  const confirm = document.getElementById('confirm').value;
+  if (password !== confirm) { errorEl.textContent = 'As senhas não coincidem.'; return; }
+  signupEmail = document.getElementById('email').value.trim();
+  try {
+    await post('/api/signup/start', { email: signupEmail, password, confirm });
+    document.getElementById('emailShown').textContent = signupEmail;
+    showStep(2);
+  } catch (err) { errorEl.textContent = err.message; }
+});
+
+document.getElementById('verifyForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    await post('/api/signup/verify', { email: signupEmail, code: document.getElementById('code').value.trim() });
+    showStep(3);
+  } catch (err) { errorEl.textContent = err.message; }
+});
+
+document.getElementById('resendBtn').addEventListener('click', async () => {
+  try {
+    await post('/api/signup/start', {
+      email: signupEmail,
+      password: document.getElementById('password').value,
+      confirm: document.getElementById('confirm').value
+    });
+    errorEl.textContent = '';
+    alert('Novo código enviado. Veja o terminal do servidor.');
+  } catch (err) { errorEl.textContent = err.message; }
+});
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const data = await post('/api/signup/complete', {
+      email: signupEmail,
+      company_name: document.getElementById('company_name').value.trim()
+    });
+    localStorage.setItem('token', data.token);
+    localStorage.setItem('user', JSON.stringify(data.user));
+    localStorage.setItem('company', JSON.stringify(data.company));
+    localStorage.setItem('sections', JSON.stringify(data.sections));
+    location.href = 'dashboard.html';
+  } catch (err) { errorEl.textContent = err.message; }
+});
+</script>
+</body>
+</html>

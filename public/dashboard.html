@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dashboard — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="with-rail">
+<aside class="rail" id="rail">
+  <div class="rail-logo" id="railLogo">🏭</div>
+  <nav class="rail-nav">
+    <a class="rail-item active" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <div class="rail-sep"></div>
+    <div id="locIcons"></div>
+    <div class="rail-sep"></div>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+  </nav>
+  <div class="flyout" id="flyout" hidden>
+    <div class="flyout-title" id="flyoutTitle"></div>
+    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
+    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#">👥 Grupos de usuários</a>
+  </div>
+</aside>
+
+<main class="content">
+  <div class="topbar">
+    <div class="topbar-left">
+      <button class="rail-toggle" id="railToggle" title="Expandir/retrair">☰</button>
+      <h1>Dashboard</h1>
+    </div>
+    <div class="topbar-right">
+      <div class="bell-wrap">
+        <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+        <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
+      </div>
+      <div class="menu-wrap">
+        <button class="chip" id="chipBtn">
+          <span class="avatar" id="chipAvatar"></span>
+          <span class="chip-name" id="chipName"></span>
+        </button>
+        <div class="dropdown" id="userMenu" hidden>
+          <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
+          <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
+          <hr>
+          <button class="dropdown-item danger" id="menuLogout">Sair</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="dash-header">
+    <h2 id="greeting">Bem-vindo</h2>
+    <p id="todayDate"></p>
+  </div>
+
+  <div class="kpi-row" id="kpiRow"></div>
+
+  <h3 class="dash-section-title">Locais</h3>
+  <div class="dash-grid" id="dashGrid"></div>
+
+  <div class="recent-card">
+    <h3 class="dash-section-title">Atividade recente</h3>
+    <ul class="recent-list" id="recentList"></ul>
+  </div>
+</main>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'index.html';
+let user = JSON.parse(localStorage.getItem('user') || '{}');
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+function setAvatar(el, withDot) {
+  el.innerHTML = (user.avatar ? `<img src="${esc(user.avatar)}" alt="Foto de perfil">` : `<span class="avatar-initial">${esc((user.name || '?').trim()[0].toUpperCase())}</span>`) + (withDot ? '<span class="status-dot"></span>' : '');
+}
+setAvatar(document.getElementById('chipAvatar'), true);
+document.getElementById('chipName').textContent = user.name || '';
+
+const h = new Date().getHours();
+document.getElementById('greeting').textContent = (h < 12 ? 'Bom dia' : h < 18 ? 'Boa tarde' : 'Boa noite') + ', ' + (user.name || '').split(' ')[0];
+document.getElementById('todayDate').textContent = new Date().toLocaleDateString('pt-PT', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+
+let locations = [];
+const rail = document.getElementById('rail');
+const flyout = document.getElementById('flyout');
+let hoverTimer = null, hideTimer = null;
+
+function locThumb(l, cls) {
+  return `<span class="${cls}">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span>`;
+}
+
+function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(() => { flyout.hidden = true; }, 900); }
+function showFlyout(l, item) {
+  document.getElementById('flyoutTitle').textContent = l.name;
+  document.getElementById('flyProjects').href = 'manager.html?loc=' + l.id + '&tab=projects';
+  document.getElementById('flySections').href = 'manager.html?loc=' + l.id + '&tab=sections';
+  document.getElementById('flyGroups').href = 'manager.html?loc=' + l.id + '&tab=workers';
+  flyout.style.top = item.offsetTop + 'px';
+  flyout.style.left = (rail.offsetWidth - 4) + 'px';
+  flyout.hidden = false;
+}
+flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+flyout.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+
+function renderRail() {
+  const box = document.getElementById('locIcons');
+  box.innerHTML = '';
+  locations.forEach(l => {
+    const b = document.createElement('button');
+    b.className = 'rail-item loc';
+    b.title = l.name;
+    b.innerHTML = locThumb(l, 'rail-ico') + `<span class="rail-label">${esc(l.name)}</span>`;
+    b.addEventListener('mouseenter', () => { clearTimeout(hideTimer); clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showFlyout(l, b), 200); });
+    b.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); scheduleHide(); });
+    b.addEventListener('click', () => showFlyout(l, b));
+    box.appendChild(b);
+  });
+}
+
+document.getElementById('railToggle').addEventListener('click', () => {
+  rail.classList.toggle('expanded');
+  document.body.classList.toggle('rail-open');
+});
+
+function renderDash(dash) {
+  const totals = dash.locations.reduce((acc, l) => ({ active: acc.active + l.active_projects, urgent: acc.urgent + l.urgent, overdue: acc.overdue + l.overdue }), { active: 0, urgent: 0, overdue: 0 });
+  document.getElementById('kpiRow').innerHTML = `
+    <div class="kpi ok"><b>${totals.active}</b><span>Projetos ativos</span></div>
+    <div class="kpi ${totals.urgent ? 'warn' : ''}"><b>${totals.urgent}</b><span>Urgentes</span></div>
+    <div class="kpi ${totals.overdue ? 'danger' : ''}"><b>${totals.overdue}</b><span>Atrasados</span></div>
+    <div class="kpi"><b>${dash.locations.length}</b><span>Locais</span></div>`;
+
+  const grid = document.getElementById('dashGrid');
+  grid.innerHTML = dash.locations.map(l => `
+    <div class="loc-card">
+      <div class="loc-card-head">
+        ${locThumb(l, 'loc-thumb')}
+        <div><h3>${esc(l.name)}</h3><p class="muted" style="margin:0;font-size:12px">${esc(l.address || 'Sem endereço')}</p></div>
+      </div>
+      <div class="loc-stats">
+        <div><b>${l.active_projects}</b><span>ativos</span></div>
+        <div class="${l.urgent ? 'warn' : ''}"><b>${l.urgent}</b><span>urgentes</span></div>
+        <div class="${l.overdue ? 'danger' : ''}"><b>${l.overdue}</b><span>atrasados</span></div>
+      </div>
+      <ul class="loc-urgent">
+        ${l.urgent_list.map(p => `<li>${esc(p.name || p.client_name)} <span class="muted">· ${esc(p.section_name || '—')}</span></li>`).join('') || '<li class="muted">Nada urgente por aqui.</li>'}
+      </ul>
+      <button class="btn primary small open-loc" data-id="${l.id}">Abrir local</button>
+    </div>`).join('') || '<p class="muted">Nenhum local encontrado.</p>';
+  grid.querySelectorAll('.open-loc').forEach(b => b.addEventListener('click', () => location.href = 'manager.html?loc=' + b.dataset.id));
+
+  const rl = document.getElementById('recentList');
+  rl.innerHTML = (dash.recent || []).map(r => `
+    <li><b>${esc(r.user_name || 'Sistema')}</b> <span>${esc(r.action)}</span> <span class="muted">— ${esc(r.project_name || r.client_name || '')}</span> <span class="when">${esc((r.created_at || '').slice(11, 16))}</span></li>
+  `).join('') || '<li class="muted">Sem atividade registada ainda.</li>';
+}
+
+(async () => {
+  try {
+    const [{ company }, dash] = await Promise.all([api('/api/company'), api('/api/dashboard')]);
+    const logoEl = document.getElementById('railLogo');
+    if (company.logo) logoEl.innerHTML = `<img src="/${esc(company.logo)}" alt="">`;
+    locations = dash.locations;
+    renderRail();
+    renderDash(dash);
+  } catch (err) { alert(err.message); }
+})();
+
+document.getElementById('driversBtn').addEventListener('click', () => alert('Gerenciar Motoristas chega em uma próxima etapa — a estrutura já está pronta.'));
+
+// ===== Sino, dropdown e fechamento =====
+const notifPanel = document.getElementById('notifPanel');
+const userMenu = document.getElementById('userMenu');
+document.getElementById('bellBtn').addEventListener('click', (e) => {
+  e.stopPropagation(); notifPanel.hidden = !notifPanel.hidden; userMenu.hidden = true;
+});
+document.getElementById('chipBtn').addEventListener('click', (e) => {
+  e.stopPropagation(); userMenu.hidden = !userMenu.hidden; notifPanel.hidden = true;
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.bell-wrap')) notifPanel.hidden = true;
+  if (!e.target.closest('.menu-wrap')) userMenu.hidden = true;
+  if (!e.target.closest('.rail') && !e.target.closest('.flyout')) flyout.hidden = true;
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { notifPanel.hidden = true; userMenu.hidden = true; flyout.hidden = true; }
+});
+userMenu.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
+document.getElementById('menuLogout').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear();
+  location.href = 'index.html';
+});
+
+// ===== Sino: notificações reais =====
+(async () => {
+  try {
+    const { notifications, unread } = await api('/api/notifications');
+    const badge = document.getElementById('bellBadge');
+    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
+    const panel = document.getElementById('notifPanel');
+    if (panel && notifications.length) {
+      panel.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.type === 'emergency' ? 'note-emergency' : n.read ? '' : 'unread'}">
+          <b>${esc(n.title)}</b>
+          <p>${esc(n.body || '')}</p>
+          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+        </div>`).join('');
+      panel.addEventListener('click', async () => {
+        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
+        if (badge) { badge.textContent = '0'; badge.hidden = true; }
+      }, { once: true });
+    }
+  } catch (e) {}
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Meu usuário — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="with-rail">
+  <aside class="rail" id="rail">
+  <div class="rail-logo" id="railLogo">🏭</div>
+  <nav class="rail-nav">
+    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <div class="rail-sep"></div>
+    <div id="locIcons"></div>
+    <div class="rail-sep"></div>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+  </nav>
+  <div class="flyout" id="flyout" hidden>
+    <div class="flyout-title" id="flyoutTitle"></div>
+    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
+    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#">👥 Grupos de usuários</a>
+  </div>
+</aside>
+<div class="topbar">
+  <div class="topbar-left">
+    
+    <h1>Tornang — <span id="companyName"></span></h1>
+  </div>
+  <div class="topbar-right">
+    <div class="bell-wrap">
+      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+      <div class="notif-panel" id="notifPanel" hidden>
+        <div class="notif-empty">Sem notificações por enquanto.</div>
+      </div>
+    </div>
+    <div class="menu-wrap">
+      <button class="chip" id="chipBtn">
+        <span class="avatar" id="chipAvatar"></span>
+        <span class="chip-name" id="chipName"></span>
+      </button>
+      <div class="dropdown" id="userMenu" hidden>
+        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
+        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
+        <hr>
+        <button class="dropdown-item danger" id="menuLogout">Sair</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="panel" style="max-width:760px;margin:0 auto">
+
+  <div class="card" style="margin-bottom:24px">
+    <h2 style="margin-bottom:14px">Foto de perfil</h2>
+    <div class="photo-row">
+      <span class="avatar avatar-big" id="bigAvatar"></span>
+      <div class="photo-actions">
+        <button type="button" class="btn primary" id="addPhotoBtn">Adicionar foto</button>
+        <button type="button" class="btn ghost" id="removePhotoBtn" hidden>Remover foto</button>
+        <input type="file" id="photoInput" accept="image/png,image/jpeg,image/webp" hidden>
+      </div>
+    </div>
+    <p class="muted">Opcional — você pode usar a foto ou apenas sua inicial. Ela aparece na barra de todas as páginas.</p>
+    <p id="photoMsg" class="muted" style="margin-top:10px"></p>
+  </div>
+
+  <div class="card" style="margin-bottom:24px">
+    <h2 style="margin-bottom:14px">Meus dados</h2>
+    <form id="accountForm">
+      <label>Meu nome *<input type="text" id="aName" required></label>
+      <label>Telefone<input type="text" id="aPhone"></label>
+      <button type="submit" class="btn primary">Salvar dados</button>
+    </form>
+    <p id="accountMsg" class="muted" style="margin-top:10px"></p>
+  </div>
+
+  <div class="card" style="margin-bottom:24px">
+    <h2 style="margin-bottom:14px">Segurança</h2>
+    <form id="passForm">
+      <label>Senha atual<input type="password" id="pCurrent" required autocomplete="current-password"></label>
+      <label>Nova senha<input type="password" id="pNew" required minlength="4" autocomplete="new-password"></label>
+      <label>Confirmar nova senha<input type="password" id="pConfirm" required minlength="4" autocomplete="new-password"></label>
+      <button type="submit" class="btn primary">Alterar minha senha</button>
+    </form>
+    <p id="passMsg" class="muted" style="margin-top:10px"></p>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-bottom:14px">E-mail de acesso</h2>
+    <div class="email-row">
+      <span id="emailDisplay"></span>
+      <button type="button" class="btn ghost" id="changeEmailBtn">Alterar e-mail</button>
+    </div>
+    <p class="muted">É o e-mail que você usa para entrar. A alteração pede sua senha para confirmar que é você.</p>
+    <p id="emailMsg" class="muted" style="margin-top:10px"></p>
+  </div>
+</div>
+
+<div class="modal-overlay" id="emailModal" hidden>
+  <div class="modal">
+    <h3>Alterar e-mail</h3>
+    <form id="emailForm">
+      <label>Novo e-mail<input type="email" id="eNew" required></label>
+      <label>Confirmar novo e-mail<input type="email" id="eConfirm" required></label>
+      <label>Senha atual <span class="muted">(para confirmar que é você)</span><input type="password" id="ePass" required autocomplete="current-password"></label>
+      <p id="emailModalMsg" class="muted" style="margin-top:10px"></p>
+      <div class="modal-actions">
+        <button type="button" class="btn ghost" id="emailCancel">Cancelar</button>
+        <button type="submit" class="btn primary">Confirmar alteração</button>
+      </div>
+    </form>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'index.html';
+let user = JSON.parse(localStorage.getItem('user') || '{}');
+if (user.role !== 'manager') location.href = 'worker.html';
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+function saveUser() { localStorage.setItem('user', JSON.stringify(user)); }
+function setAvatar(el, withDot) {
+  el.innerHTML = (user.avatar ? `<img src="${esc(user.avatar)}" alt="Foto de perfil">` : `<span class="avatar-initial">${esc((user.name || '?').trim()[0].toUpperCase())}</span>`) + (withDot ? '<span class="status-dot"></span>' : '');
+}
+function renderProfile() {
+  setAvatar(document.getElementById('chipAvatar'), true);
+  setAvatar(document.getElementById('bigAvatar'), false);
+  document.getElementById('chipName').textContent = `${user.name || ''} — Gestor`;
+  document.getElementById('emailDisplay').textContent = user.email || '';
+  document.getElementById('removePhotoBtn').hidden = !user.avatar;
+}
+
+(async () => {
+  const { company, user: fresh } = await api('/api/company');
+  document.getElementById('companyName').textContent = company.name || '';
+  user = { ...user, ...fresh };
+  saveUser();
+  document.getElementById('aName').value = user.name || '';
+  document.getElementById('aPhone').value = user.phone || '';
+  renderProfile();
+})();
+
+// ===== Foto de perfil =====
+const photoInput = document.getElementById('photoInput');
+document.getElementById('addPhotoBtn').addEventListener('click', () => photoInput.click());
+photoInput.addEventListener('change', () => {
+  const file = photoInput.files[0];
+  photoInput.value = '';
+  const msg = document.getElementById('photoMsg');
+  if (!file) return;
+  if (file.size > 2 * 1024 * 1024) { msg.textContent = 'Imagem muito grande (máximo 2 MB).'; return; }
+  const reader = new FileReader();
+  reader.onload = async () => {
+    try {
+      const { user: updated } = await api('/api/user/avatar', { method: 'POST', body: JSON.stringify({ image: reader.result }) });
+      user = { ...user, ...updated }; saveUser(); renderProfile();
+      msg.textContent = 'Foto atualizada.';
+    } catch (err) { msg.textContent = err.message; }
+  };
+  reader.readAsDataURL(file);
+});
+document.getElementById('removePhotoBtn').addEventListener('click', async () => {
+  const msg = document.getElementById('photoMsg');
+  try {
+    const { user: updated } = await api('/api/user/avatar', { method: 'DELETE' });
+    user = { ...user, ...updated }; saveUser(); renderProfile();
+    msg.textContent = 'Foto removida.';
+  } catch (err) { msg.textContent = err.message; }
+});
+
+// ===== Meus dados (só nome e telefone) =====
+document.getElementById('accountForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('accountMsg');
+  const name = document.getElementById('aName').value.trim();
+  if (!name) { msg.textContent = 'O nome não pode ficar vazio.'; return; }
+  try {
+    // Sem e-mail no pedido: o servidor entende que o e-mail não mudou
+    const { user: updated } = await api('/api/manager/profile', { method: 'PUT', body: JSON.stringify({
+      name,
+      phone: document.getElementById('aPhone').value.trim()
+    })});
+    user = { ...user, ...updated }; saveUser(); renderProfile();
+    msg.textContent = 'Dados salvos.';
+  } catch (err) { msg.textContent = err.message; }
+});
+
+// ===== Segurança (senha) =====
+document.getElementById('passForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('passMsg');
+  const p1 = document.getElementById('pNew').value;
+  const p2 = document.getElementById('pConfirm').value;
+  if (p1 !== p2) { msg.textContent = 'As senhas não coincidem.'; return; }
+  try {
+    await api('/api/manager/change-password', { method: 'POST', body: JSON.stringify({
+      current: document.getElementById('pCurrent').value, password: p1 }) });
+    msg.textContent = 'Senha alterada.';
+    document.getElementById('passForm').reset();
+  } catch (err) { msg.textContent = err.message; }
+});
+
+// ===== E-mail de acesso (modal) =====
+const emailModal = document.getElementById('emailModal');
+function closeEmailModal() { emailModal.hidden = true; }
+document.getElementById('changeEmailBtn').addEventListener('click', () => {
+  document.getElementById('emailForm').reset();
+  document.getElementById('emailModalMsg').textContent = '';
+  emailModal.hidden = false;
+  document.getElementById('eNew').focus();
+});
+document.getElementById('emailCancel').addEventListener('click', closeEmailModal);
+emailModal.addEventListener('click', (e) => { if (e.target === emailModal) closeEmailModal(); });
+document.getElementById('emailForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('emailModalMsg');
+  const n1 = document.getElementById('eNew').value.trim();
+  const n2 = document.getElementById('eConfirm').value.trim();
+  if (n1 !== n2) { msg.textContent = 'Os e-mails não coincidem.'; return; }
+  try {
+    const { user: updated } = await api('/api/manager/profile', { method: 'PUT', body: JSON.stringify({
+      name: user.name, phone: user.phone, email: n1,
+      current_password: document.getElementById('ePass').value
+    })});
+    user = { ...user, ...updated }; saveUser(); renderProfile();
+    closeEmailModal();
+    document.getElementById('emailMsg').textContent = 'E-mail alterado.';
+  } catch (err) { msg.textContent = err.message; }
+});
+
+// ===== Sino, dropdown e fechamento =====
+const notifPanel = document.getElementById('notifPanel');
+const userMenu = document.getElementById('userMenu');
+document.getElementById('bellBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  notifPanel.hidden = !notifPanel.hidden;
+  userMenu.hidden = true;
+});
+document.getElementById('chipBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  userMenu.hidden = !userMenu.hidden;
+  notifPanel.hidden = true;
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.bell-wrap')) notifPanel.hidden = true;
+  if (!e.target.closest('.menu-wrap')) userMenu.hidden = true;
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { notifPanel.hidden = true; userMenu.hidden = true; closeEmailModal(); }
+});
+userMenu.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
+document.getElementById('menuLogout').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear();
+  location.href = 'index.html';
+});
+
+
+// ===== Rail (sidebar) =====
+const rail = document.getElementById('rail');
+const flyout = document.getElementById('flyout');
+let hoverTimer = null, hideTimer = null;
+function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(() => { flyout.hidden = true; }, 900); }
+function showFlyout(l, item) {
+  document.getElementById('flyoutTitle').textContent = l.name;
+  document.getElementById('flyProjects').href = 'manager.html?loc=' + l.id + '&tab=projects';
+  document.getElementById('flySections').href = 'manager.html?loc=' + l.id + '&tab=sections';
+  document.getElementById('flyGroups').href = 'manager.html?loc=' + l.id + '&tab=workers';
+  flyout.style.top = item.offsetTop + 'px';
+  flyout.style.left = (rail.offsetWidth - 4) + 'px';
+  flyout.hidden = false;
+}
+flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+flyout.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+document.getElementById('railToggle')?.addEventListener('click', () => {
+  rail.classList.toggle('expanded');
+  document.body.classList.toggle('rail-open');
+});
+(async () => {
+  try {
+    const { company } = await api('/api/company');
+    const logoEl = document.getElementById('railLogo');
+    if (company.logo) logoEl.innerHTML = `<img src="/${esc(company.logo)}" alt="">`;
+    const { locations: locs } = await api('/api/locations');
+    const box = document.getElementById('locIcons');
+    const currentLoc = new URLSearchParams(location.search).get('loc');
+    locs.forEach(l => {
+      const b = document.createElement('button');
+      b.className = 'rail-item loc' + (currentLoc == l.id ? ' active' : '');
+      b.title = l.name;
+      b.innerHTML = `<span class="rail-ico">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span><span class="rail-label">${esc(l.name)}</span>`;
+      b.addEventListener('mouseenter', () => { clearTimeout(hideTimer); clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showFlyout(l, b), 200); });
+      b.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); scheduleHide(); });
+      b.addEventListener('click', () => showFlyout(l, b));
+      box.appendChild(b);
+    });
+  } catch (e) {}
+})();
+document.getElementById('driversBtn').addEventListener('click', () => alert('Gerenciar Motoristas chega em uma próxima etapa.'));
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.rail') && !e.target.closest('.flyout')) flyout.hidden = true;
+});
+
+// ===== Sino: notificações reais =====
+(async () => {
+  try {
+    const { notifications, unread } = await api('/api/notifications');
+    const badge = document.getElementById('bellBadge');
+    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
+    const panel = document.getElementById('notifPanel');
+    if (panel && notifications.length) {
+      panel.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.read ? '' : 'unread'}">
+          <b>${esc(n.title)}</b>
+          <p>${esc(n.body || '')}</p>
+          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+        </div>`).join('');
+      panel.addEventListener('click', async () => {
+        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
+        if (badge) { badge.textContent = '0'; badge.hidden = true; }
+      }, { once: true });
+    }
+  } catch (e) {}
+})();
+
+</script>
+</body>
+</html>

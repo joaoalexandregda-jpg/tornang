@@ -1,0 +1,6 @@
+node_modules/
+tornang.db
+tornang.db-wal
+tornang.db-shm
+uploads/
+.env

@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trabalhador — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="worker-page">
+<div class="topbar">
+  <h1>Tornang — <span id="companyName"></span></h1>
+  <div class="user">
+    <span class="badge blue" id="sectionBadge"></span>
+    <span id="userName"></span>
+    <div class="bell-wrap">
+      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+      <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
+    </div>
+    <button class="btn ghost small" id="soundBtn">🔇 Som desligado</button>
+    <button class="btn ghost small" id="logoutBtn">Sair</button>
+  </div>
+</div>
+<div class="panel">
+  <h2>📥 Disponíveis na minha seção</h2>
+  <div id="availableList" class="grid"></div>
+  <h2 style="margin-top:24px">👥 Na minha seção</h2>
+  <div id="othersList" class="grid"></div>
+  <h2 style="margin-top:24px">🛠️ Em andamento (minhas)</h2>
+  <div id="mineList" class="grid"></div>
+  <h2 style="margin-top:24px">📋 Meu histórico</h2>
+  <div id="historyList"></div>
+</div>
+
+<div class="modal-overlay" id="notesModal" hidden>
+  <div class="modal">
+    <h3 id="notesTitle">Anotações</h3>
+    <div id="notesList" style="max-height:220px;overflow:auto;margin-bottom:12px"></div>
+    <div class="quick-alerts">
+      <button class="btn ghost small" onclick="sendNote(true,'Problema mecânico')">⚠️ Problema mecânico</button>
+      <button class="btn ghost small" onclick="sendNote(true,'Falta de material')">📦 Falta de material</button>
+      <button class="btn ghost small" onclick="sendNote(true,'Aguardando cliente')">⏳ Aguardando cliente</button>
+    </div>
+    <textarea id="noteText" rows="3" placeholder="Escreva uma anotação sobre esta folha..." style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font:inherit;resize:vertical"></textarea>
+    <div class="modal-actions">
+      <button type="button" class="btn ghost" id="notesBack">← Voltar</button>
+      <button type="button" class="btn primary" onclick="sendNote(false)">Salvar anotação</button>
+    </div>
+    <p id="notesMsg" class="muted" style="margin-top:8px"></p>
+  </div>
+</div>
+
+<div class="modal-overlay" id="jobModal" hidden>
+  <div class="job-modal">
+    <div class="job-head">
+      <div class="job-head-left">
+        <h3 id="jobTitle"></h3>
+        <span class="badge blue">Em produção</span>
+      </div>
+      <button class="job-close" id="jobClose" aria-label="Fechar">×</button>
+    </div>
+    <div class="job-meta-row" id="jobMeta"></div>
+    <div class="job-body">
+      <h4 style="margin:0 0 10px">📎 Documentos</h4>
+      <div class="doc-strip-row">
+        <button class="doc-arrow" id="docPrev" aria-label="Anteriores">‹</button>
+        <div class="doc-strip" id="docStrip"></div>
+        <button class="doc-arrow" id="docNext" aria-label="Próximos">›</button>
+      </div>
+
+      <input type="file" id="docInput" multiple hidden>
+      <p id="docsMsg" class="muted"></p>
+    </div>
+    <div class="job-actions">
+      <button class="btn ghost" id="jobNotesBtn">💬 Anotações</button>
+      <button class="btn primary" id="jobFinishBtn">✅ Concluir e passar</button>
+    </div>
+  </div>
+</div>
+<button class="emergency-fab" id="emergencyFab" aria-label="Emergência">🚨</button>
+<div class="modal-overlay" id="emergencyModal" hidden>
+  <div class="emergency-box">
+    <h3>🚨 Emergência</h3>
+    <p>Selecione o tipo. Todos os gestores serão notificados imediatamente.</p>
+    <button class="emergency-opt med" id="emergMed">🚑 Emergência médica</button>
+    <button class="emergency-opt fire" id="emergFire">🔥 Incêndio</button>
+    <button class="btn ghost" id="emergCancel">Cancelar</button>
+  </div>
+</div>
+<div class="modal-overlay" id="docViewer" hidden>
+  <button class="doc-viewer-close" id="docViewerClose" aria-label="Fechar">✕</button>
+  <div class="doc-viewer-body" id="docViewerBody"></div>
+</div>
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'login-worker.html';
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const company = JSON.parse(localStorage.getItem('company') || '{}');
+const sections = JSON.parse(localStorage.getItem('sections') || '[]');
+if (user.role !== 'worker') location.href = 'manager.html';
+document.getElementById('companyName').textContent = company.name;
+document.getElementById('userName').textContent = user.name;
+document.getElementById('sectionBadge').textContent = '📍 ' + ((sections.find(s => s.id === user.section_id) || {}).name || 'Sem seção');
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+
+const jobCache = {};
+
+async function loadQueue() {
+  const { available, mine } = await api('/api/worker/queue');
+  const av = document.getElementById('availableList');
+  av.innerHTML = available.length ? available.map(p => {
+    jobCache[p.id] = p;
+    return `
+    <div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
+      <h3>${esc(p.client_name)}</h3>
+      ${p.name ? `<p><b>${esc(p.name)}</b></p>` : ''}
+      ${p.description ? `<p>${esc(p.description)}</p>` : ''}
+      <p>Seção: <span class="badge blue">${esc(p.section_name)}</span></p>
+      ${p.parallel_with ? `<p>Em paralelo com: <span class="badge orange">${esc(p.parallel_with)}</span></p>` : ''}
+      <div class="row-actions" style="margin-top:10px">
+        <button class="btn success small" onclick="event.stopPropagation();accept(${p.id})">Assumir</button>
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty">Nenhuma folha disponível agora.</p>';
+
+  const { others } = await api('/api/worker/section-queue');
+  const ot = document.getElementById('othersList');
+  ot.innerHTML = others.length ? others.map(p => `
+    <div class="item">
+      <h3>${esc(p.client_name)}</h3>
+      ${p.name ? `<p><b>${esc(p.name)}</b></p>` : ''}
+      <p>Seção: <span class="badge blue">${esc(p.section_name)}</span> <span class="badge holder-badge">com ${esc(p.holder_name)}</span></p>
+      <div class="row-actions" style="margin-top:10px">
+        <button class="btn ghost small" onclick="askToJoin(${p.id})">🤝 Pedir para participar</button>
+      </div>
+    </div>`).join('') : '<p class="empty">Ninguém da sua seção tem folhas em andamento agora.</p>';
+
+  const mi = document.getElementById('mineList');
+  mi.innerHTML = mine.length ? mine.map(p => {
+    jobCache[p.id] = p;
+    return `
+    <div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
+      <h3>${esc(p.client_name)}</h3>
+      ${p.name ? `<p><b>${esc(p.name)}</b></p>` : ''}
+      ${p.description ? `<p>${esc(p.description)}</p>` : ''}
+      <p>Seção: <span class="badge blue">${esc(p.section_name)}</span></p>
+      ${p.parallel_with ? `<p>Em paralelo com: <span class="badge orange">${esc(p.parallel_with)}</span></p>` : ''}
+      <div class="row-actions" style="margin-top:10px">
+        <button class="btn ghost small" onclick="event.stopPropagation();openNotes(${p.id}, '${esc(p.name || p.client_name)}')">💬 Anotações</button>
+        <button class="btn primary small" onclick="event.stopPropagation();finish(${p.id})">Concluir e passar</button>
+      </div>
+    </div>`;
+  }).join('') : '<p class="empty">Você não tem folhas em andamento.</p>';
+    return { available, mine };
+}
+
+async function accept(id) {
+  try {
+    await api('/api/projects/' + id + '/accept', { method: 'POST' });
+    loadQueue(); loadHistory();
+  } catch (err) { alert(err.message); }
+}
+
+async function finish(id) {
+  if (!confirm('Concluir esta folha e enviar para a próxima seção?')) return;
+  try {
+    const data = await api('/api/projects/' + id + '/finish', { method: 'POST' });
+    if (data.completed) alert('🎉 Folha concluída!');
+    else if (data.waiting) alert('⏳ Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
+    else alert('✅ Folha enviada para: ' + data.next);
+    loadQueue(); loadHistory();
+  } catch (err) { alert(err.message); }
+}
+
+async function askToJoin(id) {
+  try {
+    await api('/api/projects/' + id + '/join-request', { method: 'POST' });
+    alert('🤝 Pedido enviado! Você será notificado quando responderem.');
+  } catch (err) { alert(err.message); }
+}
+
+async function loadHistory() {
+  const { history } = await api('/api/worker/history');
+  const labels = { accepted: 'Assumi', finished: 'Concluí', passed: 'Passei para' };
+  const el = document.getElementById('historyList');
+  el.innerHTML = history.length ? `<div class="table-wrap"><table><thead><tr><th>Data</th><th>Folha</th><th>Seção</th><th>Ação</th></tr></thead><tbody>` +
+    history.map(h => `<tr><td>${esc(h.created_at)}</td><td>${esc(h.client_name)}${h.project_name ? `<br><small class="muted">${esc(h.project_name)}</small>` : ''}</td><td>${esc(h.section_name || '—')}</td><td>${labels[h.action] || h.action}</td></tr>`).join('') +
+    '</tbody></table></div>' : '<p class="empty">Nenhuma atividade registrada ainda.</p>';
+}
+
+// ===== Sino do trabalhador =====
+const bellBtn = document.getElementById('bellBtn');
+const notifPanel = document.getElementById('notifPanel');
+
+let knownBellTop = null;
+async function loadBell() {
+  try {
+    const { notifications, unread } = await api('/api/notifications');
+    const topId = notifications.length ? notifications[0].id : null;
+    if (knownBellTop !== null && topId !== null && topId > knownBellTop) playAlert(2);
+    if (topId !== null) knownBellTop = topId;
+    const badge = document.getElementById('bellBadge');
+    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
+    if (notifications.length) {
+      notifPanel.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.read ? '' : 'unread'}">
+          <b>${esc(n.title)}</b>
+          <p>${esc(n.body || '')}</p>
+          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+          ${n.type === 'join_request' ? `
+            <div class="row-actions" style="margin-top:8px">
+              <button class="btn success small" onclick="respondJoin(${n.ref_id}, 'accept')">✅ Aceitar</button>
+              <button class="btn ghost small" onclick="respondJoin(${n.ref_id}, 'refuse')">❌ Recusar</button>
+            </div>` : ''}
+        </div>`).join('');
+    }
+  } catch (e) {}
+}
+
+async function respondJoin(refId, action) {
+  try {
+    await api('/api/join-requests/' + refId + '/' + action, { method: 'POST' });
+    await loadBell();
+    loadQueue();
+  } catch (err) { alert(err.message); }
+}
+
+bellBtn.addEventListener('click', async () => {
+  notifPanel.hidden = !notifPanel.hidden;
+  if (!notifPanel.hidden) {
+    try {
+      await api('/api/notifications/read', { method: 'POST' });
+      const b = document.getElementById('bellBadge');
+      if (b) b.hidden = true;
+    } catch (e) {}
+  }
+});
+document.addEventListener('click', e => { if (!bellBtn.contains(e.target) && !notifPanel.contains(e.target)) notifPanel.hidden = true; });
+
+
+// ===== Anotações e alertas rápidos =====
+let notesProjectId = null;
+
+async function openNotes(id, title) {
+  notesProjectId = id;
+  document.getElementById('notesTitle').textContent = 'Anotações — ' + title;
+  document.getElementById('noteText').value = '';
+  document.getElementById('notesMsg').textContent = '';
+  try { await renderNotes(); } catch (err) { document.getElementById('notesMsg').textContent = err.message; }
+  document.getElementById('notesModal').hidden = false;
+}
+
+const noteIcons = {
+  'Problema mecânico': '🔧',
+  'Falta de material': '📦',
+  'Aguardando cliente': '⏳',
+  'Alerta geral': '⚠️',
+  'Emergência médica': '🚑',
+  'Incêndio': '🔥'
+};
+
+async function renderNotes() {
+  const { notes } = await api('/api/projects/' + notesProjectId + '/notes');
+  document.getElementById('notesList').innerHTML = notes.length ? notes.map(n => {
+    const isEmergency = /emergência|incêndio/i.test(n.alert_type || '');
+    const icon = n.is_alert ? (noteIcons[n.alert_type] || '⚠️') : '💬';
+    return `
+    <div class="notif-item ${isEmergency ? 'note-emergency' : n.is_alert ? 'unread' : ''}">
+      <b>${icon} ${esc(n.author_name || '?')}${n.section_name ? ' · ' + esc(n.section_name) : ''}${n.is_alert ? ' — ' + esc(n.alert_type || 'Alerta') : ''}</b>
+      ${n.note ? `<p>${esc(n.note)}</p>` : ''}
+      <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+    </div>`;
+  }).join('') : '<p class="empty">Nenhuma anotação ainda.</p>';
+}
+
+async function sendNote(isAlert, alertType) {
+  const note = document.getElementById('noteText').value.trim();
+  const msg = document.getElementById('notesMsg');
+  if (!note && !isAlert) { msg.textContent = 'Escreva a anotação.'; return; }
+  try {
+    await api('/api/projects/' + notesProjectId + '/notes', { method: 'POST', body: JSON.stringify({ note, is_alert: isAlert, alert_type: alertType }) });
+    document.getElementById('noteText').value = '';
+    msg.textContent = isAlert ? '⚠️ Alerta enviado ao gestor.' : 'Anotação salva.';
+    await renderNotes();
+  } catch (err) { msg.textContent = err.message; }
+}
+
+document.getElementById('notesBack').addEventListener('click', () => {
+  document.getElementById('notesModal').hidden = true;
+  if (jobProjectId) jobModal.hidden = false; // volta ao popup da folha se veio dele
+});
+document.getElementById('notesModal').addEventListener('click', (e) => { if (e.target === e.currentTarget) e.currentTarget.hidden = true; });
+
+
+// ===== Popup grande da folha =====
+const jobModal = document.getElementById('jobModal');
+const docStrip = document.getElementById('docStrip');
+const docInput = document.getElementById('docInput');
+let jobProjectId = null;
+
+function openJob(id) {
+  const p = jobCache[id];
+  if (!p) return;
+  jobProjectId = id;
+  document.getElementById('jobTitle').textContent = p.client_name + (p.name ? ' — ' + p.name : '');
+  document.getElementById('jobMeta').innerHTML = `
+    <div class="meta-cell"><span class="meta-label">Cliente</span><b>${esc(p.client_name)}</b></div>
+    <div class="meta-cell"><span class="meta-label">Prazo</span><b>${esc(p.due_date || '—')}</b></div>
+    <div class="meta-cell"><span class="meta-label">Seção</span><b>${esc(p.section_name || '—')}</b></div>
+    <div class="meta-cell"><span class="meta-label">Responsável</span><b>${esc(user.name || '—')}</b></div>`;
+  document.getElementById('docsMsg').textContent = '';
+  renderDocsStrip();
+  jobModal.hidden = false;
+}
+
+async function renderDocsStrip() {
+  docStrip.innerHTML = '<p class="empty" style="width:100%">Carregando...</p>';
+  try {
+    const { documents } = await api('/api/projects/' + jobProjectId + '/documents');
+    const cards = documents.map(d => {
+      const isImg = (d.mime_type || '').startsWith('image/');
+      const isPdf = (d.mime_type || '').includes('pdf');
+      return `<div class="doc-card" data-name="${esc(d.original_name)}" data-url="/uploads/${esc(d.stored_name)}" data-type="${isImg ? 'img' : isPdf ? 'pdf' : 'other'}">
+        ${isImg ? `<img src="/uploads/${esc(d.stored_name)}" alt="">` : `<div class="doc-icon">${isPdf ? '📕' : '📄'}</div>`}
+        <p>${esc(d.original_name)}</p>
+      </div>`;
+    });
+    docStrip.innerHTML = cards.join('') + '<div class="doc-card upload" id="docUploadCard">📎<p>Clique ou arraste seu arquivo</p></div>';
+  } catch (err) { docStrip.innerHTML = '<p class="empty" style="width:100%">' + esc(err.message) + '</p>'; }
+}
+
+docStrip.addEventListener('click', (e) => {
+  if (e.target.closest('#docUploadCard')) { docInput.click(); return; }
+  const card = e.target.closest('.doc-card');
+  if (card) previewDoc(card);
+});
+['dragover', 'dragenter'].forEach(ev => docStrip.addEventListener(ev, e => { e.preventDefault(); docStrip.classList.add('drag'); }));
+['dragleave', 'drop'].forEach(ev => docStrip.addEventListener(ev, e => { e.preventDefault(); docStrip.classList.remove('drag'); }));
+docStrip.addEventListener('drop', e => uploadFiles(e.dataTransfer.files));
+docInput.addEventListener('change', () => { uploadFiles(docInput.files); docInput.value = ''; });
+
+function previewDoc(card) {
+  const url = card.dataset.url, type = card.dataset.type, name = card.dataset.name;
+  const body = document.getElementById('docViewerBody');
+  if (type === 'img') body.innerHTML = `<img src="${url}" alt="${esc(name)}">`;
+  else if (type === 'pdf') body.innerHTML = `<iframe src="${url}" title="${esc(name)}"></iframe>`;
+  else body.innerHTML = `<p style="color:#fff;font-size:18px">Pré-visualização não disponível para este tipo de arquivo.</p>`;
+  document.getElementById('docViewer').hidden = false;
+}
+
+document.getElementById('docPrev').addEventListener('click', () => docStrip.scrollBy({ left: -340, behavior: 'smooth' }));
+document.getElementById('docNext').addEventListener('click', () => docStrip.scrollBy({ left: 340, behavior: 'smooth' }));
+
+async function uploadFiles(files) {
+  if (!files || !files.length || !jobProjectId) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  const msg = document.getElementById('docsMsg');
+  msg.textContent = 'Enviando...';
+  try {
+    const res = await fetch('/api/projects/' + jobProjectId + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.error || 'Erro no upload');
+    msg.textContent = data.count + ' arquivo(s) enviado(s).';
+    await renderDocsStrip();
+  } catch (err) { msg.textContent = err.message; }
+}
+
+document.getElementById('jobNotesBtn').addEventListener('click', () => openNotes(jobProjectId, document.getElementById('jobTitle').textContent));
+
+document.getElementById('jobFinishBtn').addEventListener('click', async () => { jobModal.hidden = true; await finish(jobProjectId); });
+document.getElementById('jobClose').addEventListener('click', () => jobModal.hidden = true);
+jobModal.addEventListener('click', e => { if (e.target === jobModal) jobModal.hidden = true; });
+
+// ===== Emergência flutuante =====
+const emergencyModal = document.getElementById('emergencyModal');
+document.getElementById('emergencyFab').addEventListener('click', () => { emergencyModal.hidden = false; });
+document.getElementById('emergCancel').addEventListener('click', () => emergencyModal.hidden = true);
+emergencyModal.addEventListener('click', e => { if (e.target === emergencyModal) emergencyModal.hidden = true; });
+
+async function sendEmergency(type) {
+  try {
+    const folhaAberta = jobProjectId && !jobModal.hidden;
+    await api('/api/emergency', { method: 'POST', body: JSON.stringify({ type, project_id: folhaAberta ? jobProjectId : null }) });
+    emergencyModal.hidden = true;
+    alert('🚨 ' + type + ' enviada. Todos os gestores foram notificados.');
+  } catch (err) { alert(err.message); }
+}
+document.getElementById('emergMed').addEventListener('click', () => sendEmergency('Emergência médica'));
+document.getElementById('emergFire').addEventListener('click', () => sendEmergency('Incêndio'));
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { document.getElementById('notesModal').hidden = true; jobModal.hidden = true; emergencyModal.hidden = true; } });
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear();
+  location.href = 'login-worker.html';
+});
+
+
+// ===== Visualizador em tela cheia =====
+const docViewer = document.getElementById('docViewer');
+const docViewerBody = document.getElementById('docViewerBody');
+
+document.getElementById('docViewerClose').addEventListener('click', () => { docViewer.hidden = true; docViewerBody.innerHTML = ''; });
+docViewer.addEventListener('click', e => { if (e.target === docViewer) { docViewer.hidden = true; docViewerBody.innerHTML = ''; } });
+
+
+// ===== Auto-atualização + aviso sonoro =====
+let audioCtx = null;
+function getCtx() {
+  if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  if (audioCtx.state === 'suspended') audioCtx.resume();
+  return audioCtx;
+}
+function playAlert(times = 3) {
+  if (!soundOn) return;
+  try {
+    const ctx = getCtx();
+    let n = 0;
+    const beep = () => {
+      const o = ctx.createOscillator();
+      const g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = 880;
+      o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.5, ctx.currentTime);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.5);
+      o.start(); o.stop(ctx.currentTime + 0.5);
+    };
+    const loop = () => { if (n++ >= times) return; beep(); setTimeout(loop, 700); };
+    loop();
+  } catch (e) {}
+}
+// ===== Botão de som liga/desliga =====
+let soundOn = false;
+document.getElementById('soundBtn').addEventListener('click', () => {
+  soundOn = !soundOn;
+  const btn = document.getElementById('soundBtn');
+  if (soundOn) {
+    getCtx(); playAlert(1);          // confirma com um bipe
+    btn.textContent = '🔊 Som ligado';
+    btn.classList.add('sound-on');
+  } else {
+    btn.textContent = '🔇 Som desligado';
+    btn.classList.remove('sound-on');
+  }
+});
+
+let knownAvailable = null;
+async function autoRefresh() {
+  try {
+    const result = await loadQueue();
+    if (result) {
+      const ids = result.available.map(p => p.id).sort((a, b) => a - b).join(',');
+      if (knownAvailable !== null && ids !== knownAvailable) {
+        const added = result.available.filter(p => !knownAvailable.split(',').includes(String(p.id)));
+        if (added.length) { playAlert(3); document.title = '📥 NOVA FOLHA — Tornang'; }
+      }
+      knownAvailable = ids;
+    }
+    await loadBell();
+  } catch (e) {}
+}
+setInterval(autoRefresh, 3000);
+document.addEventListener('click', () => { document.title = 'Trabalhador — Tornang'; });
+
+
+
+loadBell();
+loadQueue();
+loadHistory();
+</script>
+</body>
+</html>

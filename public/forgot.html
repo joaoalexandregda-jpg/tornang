@@ -1,0 +1,35 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Recuperar senha — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <h1>Recuperar senha</h1>
+    <p class="muted">Válido apenas para a conta do gerente</p>
+    <form id="forgotForm">
+      <label>E-mail da conta<input type="email" id="email" required></label>
+      <button type="submit" class="btn primary">Enviar link de redefinição</button>
+    </form>
+    <p id="msg" class="muted" style="margin-top:12px"></p>
+    <div class="auth-links"><a href="login-company.html">Voltar ao login</a></div>
+  </div>
+</div>
+<script>
+document.getElementById('forgotForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await fetch('/api/forgot-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: document.getElementById('email').value.trim() })
+  });
+  const data = await res.json();
+  document.getElementById('msg').textContent = data.message || 'Verifique seu e-mail.';
+});
+</script>
+</body>
+</html>

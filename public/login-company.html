@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Portal da Empresa — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <h1>Portal da Empresa</h1>
+    <p class="muted">Entre com a conta da empresa</p>
+    <form id="loginForm">
+      <label>E-mail<input type="email" id="email" required autocomplete="email"></label>
+      <label>Senha<input type="password" id="password" required autocomplete="current-password"></label>
+      <button type="submit" class="btn primary">Entrar</button>
+    </form>
+    <p id="error" class="error"></p>
+    <div class="auth-links">
+      <a href="forgot.html">Esqueci a senha</a>
+      <a href="signup.html">Criar conta</a>
+    </div>
+    <div class="auth-links"><a href="index.html">← Voltar aos portais</a></div>
+  </div>
+</div>
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const res = await fetch('/api/login', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      email: document.getElementById('email').value.trim(),
+      password: document.getElementById('password').value,
+      portal: 'company'
+    })
+  });
+  const data = await res.json();
+  if (!res.ok) { document.getElementById('error').textContent = data.error || 'Erro ao entrar'; return; }
+  localStorage.setItem('token', data.token);
+  localStorage.setItem('user', JSON.stringify(data.user));
+  localStorage.setItem('company', JSON.stringify(data.company));
+  localStorage.setItem('sections', JSON.stringify(data.sections));
+  location.href = 'dashboard.html';
+});
+</script>
+</body>
+</html>

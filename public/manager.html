@@ -1,0 +1,703 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Gerente — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="with-rail">
+<aside class="rail" id="rail">
+  <div class="rail-logo" id="railLogo">🏭</div>
+  <nav class="rail-nav">
+    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <div class="rail-sep"></div>
+    <div id="locIcons"></div>
+    <div class="rail-sep"></div>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+  </nav>
+  <div class="flyout" id="flyout" hidden>
+    <div class="flyout-title" id="flyoutTitle"></div>
+    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
+    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#">👥 Grupos de usuários</a>
+  </div>
+</aside>
+<div class="topbar">
+  
+    <h1>Tornang — <span id="companyName"></span><span id="locName" class="muted" style="font-weight:400"></span></h1>
+  <div class="topbar-right">
+    <div class="bell-wrap">
+      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+      <div class="notif-panel" id="notifPanel" hidden>
+        <div class="notif-empty">Sem notificações por enquanto.</div>
+      </div>
+    </div>
+    <div class="menu-wrap">
+      <button class="chip" id="chipBtn">
+        <span class="avatar" id="chipAvatar"></span>
+        <span class="chip-name" id="chipName"></span>
+      </button>
+      <div class="dropdown" id="userMenu" hidden>
+        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
+        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
+        <hr>
+        <button class="dropdown-item danger" id="menuLogout">Sair</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="tabs">
+  <button class="tab active" data-tab="projects">Projetos</button>
+  <button class="tab" data-tab="workers">Trabalhadores</button>
+  <button class="tab" data-tab="sections">Seções</button>
+</div>
+<div id="panel-projects" class="panel">
+  <div class="toolbar">
+    <input id="pSearch" placeholder="Buscar cliente...">
+    <select id="pStatusFilter">
+  <option value="all">Todos os status</option>
+  <option value="in_progress">Em produção</option>
+  <option value="pending_release">Aguardando liberação</option>
+  <option value="completed">Concluídas</option>
+</select>
+    <button class="btn primary" id="newProjectBtn" style="width:auto">+ Nova folha</button>
+  </div>
+  <div id="projectsTable"></div>
+</div>
+<div id="panel-workers" class="panel hidden">
+  <div class="form-row">
+    <div class="field"><input id="wName" placeholder="Nome"></div>
+    <div class="field"><input id="wEmail" placeholder="E-mail"></div>
+    <div class="field"><input id="wPass" placeholder="Senha inicial"></div>
+    <div class="field"><select id="wSection"></select></div>
+    <button class="btn primary" id="createWorkerBtn" style="width:auto">Criar trabalhador</button>
+  </div>
+  <div id="workersList"></div>
+</div>
+<div id="panel-sections" class="panel hidden">
+  <div class="form-row">
+    <div class="field"><input id="sName" placeholder="Nome da nova seção"></div>
+    <button class="btn primary" id="createSectionBtn" style="width:auto">Adicionar seção</button>
+  </div>
+  <div id="sectionsList"></div>
+</div>
+<div id="modal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 class="modal-title" id="modalTitle"></h2>
+      <button class="modal-close" id="modalClose" title="Fechar">✕</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-footer"><div id="modalFooterLeft"></div><div id="modalFooterRight"></div></div>
+  </div>
+</div>
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'index.html';
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const company = JSON.parse(localStorage.getItem('company') || '{}');
+if (user.role !== 'manager') location.href = 'worker.html';
+document.getElementById('companyName').textContent = company.name;
+// Local atual (via ?loc= na URL) — precisa ficar no topo, visível para todas as funções
+let currentLocId = Number(new URLSearchParams(location.search).get('loc')) || null;
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+// Tabs
+document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+  document.getElementById('panel-' + t.dataset.tab).classList.remove('hidden');
+  if (t.dataset.tab === 'projects') loadProjects();
+  if (t.dataset.tab === 'workers') loadWorkers();
+  if (t.dataset.tab === 'sections') loadSections();
+}));
+// Modal
+function openModal(title, bodyHtml, footerLeft = '', footerRight = '') {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  document.getElementById('modalFooterLeft').innerHTML = footerLeft;
+  document.getElementById('modalFooterRight').innerHTML = footerRight;
+  document.getElementById('modal').classList.remove('hidden');
+}
+document.getElementById('modalClose').addEventListener('click', () => document.getElementById('modal').classList.add('hidden'));
+function fmtDate(d) { return d ? d.split('-').reverse().join('/') : '—'; }
+function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
+// Projetos
+let projectsCache = [];
+async function loadProjects() {
+  const { projects } = await api('/api/projects' + (currentLocId ? '?loc=' + currentLocId : ''));
+  projectsCache = projects;
+  renderProjects();
+}
+function renderProjects() {
+  const search = document.getElementById('pSearch').value.toLowerCase();
+  const filter = document.getElementById('pStatusFilter').value;
+  const today = new Date().toISOString().slice(0, 10);
+  const list = projectsCache.filter(p =>
+    (!search || p.client_name.toLowerCase().includes(search)) &&
+    (filter === 'all' || p.status === filter));
+  const el = document.getElementById('projectsTable');
+  if (!list.length) { el.innerHTML = '<p class="empty">Nenhuma folha encontrada.</p>'; return; }
+  const statusInfo = p => p.status === 'completed' ? { cls: 'green', label: 'Concluída' }
+    : p.status === 'pending_release' ? { cls: 'gray', label: 'Aguardando liberação' }
+    : { cls: 'orange', label: 'Em produção' };
+  el.innerHTML = `<table><thead><tr><th></th><th>Cliente</th><th>Projeto</th><th>Status</th><th>Seção atual</th><th>Prazo</th><th>Documentos</th></tr></thead><tbody>` +
+    list.map(p => {
+      const st = statusInfo(p);
+      const overdue = p.status !== 'completed' && p.due_date && p.due_date < today;
+      return `<tr class="row-click ${p.priority ? 'urgent-row' : ''}" onclick="openDetail(${p.id})">
+        <td>${p.priority ? '⚠️' : ''}</td>
+        <td><b>${esc(p.client_name)}</b>${p.description ? `<br><small class="muted">${esc(p.description)}</small>` : ''}</td>
+        <td>${p.name ? `<span class="badge blue">${esc(p.name)}</span>` : '—'}</td>
+        <td><span class="badge ${st.cls}">${st.label}</span></td>
+        <td>${p.status === 'in_progress' ? `<span class="badge blue">${esc(p.section_name || '—')}</span>` : '—'}</td>
+        <td class="${overdue ? 'date-overdue' : ''}">${p.due_date ? esc(p.due_date.split('-').reverse().join('/')) : '—'}</td>
+        <td>${p.doc_count} ${p.doc_count === 1 ? 'arquivo' : 'arquivos'}</td>
+      </tr>`;
+    }).join('') + '</tbody></table>';
+}
+document.getElementById('pSearch').addEventListener('input', renderProjects);
+document.getElementById('pStatusFilter').addEventListener('change', renderProjects);
+// ===== Construtor de rota (final — grip de arraste, sem setas) =====
+let sectionsCache = [];
+let routeSteps = [];   // [[sectionId,...], ...] — seções no mesmo array trabalham em paralelo
+let routeDoneIds = []; // seções já concluídas (travadas no editor)
+let routeBuilderId = null;
+function sectionName(id) {
+  const s = sectionsCache.find(x => x.id === id);
+  return s ? s.name : '?';
+}
+function renderRouteBuilder() {
+  const el = document.getElementById(routeBuilderId);
+  if (!el) return;
+  const used = new Set(routeSteps.flat());
+  const checks = sectionsCache.map(s => {
+    const done = routeDoneIds.includes(s.id);
+    return `<label class="route-check"><input type="checkbox" ${done || used.has(s.id) ? 'checked' : ''} ${done ? 'disabled' : ''} onchange="toggleRouteSection(${s.id})"> ${esc(s.name)}${done ? ' ✅' : ''}</label>`;
+  }).join('');
+  const steps = routeSteps.map((step, i) => `
+    <div class="route-step" data-i="${i}">
+      <span class="drag-grip" draggable="true" title="Arraste para reordenar">⠿</span>
+      <span class="route-step-no">Etapa ${i + 1}</span>
+      <span class="route-step-names">${step.map(id => esc(sectionName(id))).join(' + ')}${step.some(id => routeDoneIds.includes(id)) ? ' ✅' : ''}</span>
+      <span class="row-actions">
+        ${step.length > 1
+          ? `<button class="btn ghost small" onclick="splitStep(${i})">Separar</button>`
+          : (i > 0 ? `<button class="btn ghost small" onclick="mergeStep(${i})">Juntar c/ anterior</button>` : '')}
+        <button class="btn ghost small" onclick="removeStep(${i})" title="Remover a etapa inteira">✕</button>
+      </span>
+    </div>`).join('');
+  el.innerHTML = `<div class="route-checks">${checks}</div><div class="route-steps">${steps || '<p class="empty">Marque seções acima para montar a rota.</p>'}</div>
+    <p class="muted" style="font-size:12px;margin-top:8px">Marque as seções para adicioná-las (entram como nova etapa no fim). Arraste pelo ⠿ para reordenar, "Juntar c/ anterior" coloca a etapa em paralelo com a anterior, "Separar" desfaz e ✕ remove a etapa.</p>`;
+  attachRouteDrag(el);
+}
+function attachRouteDrag(el) {
+  if (el.dataset.dragReady) return;
+  el.dataset.dragReady = '1';
+  let dragIdx = null;
+  el.addEventListener('dragstart', e => {
+    const grip = e.target.closest('.drag-grip');
+    if (!grip) { e.preventDefault(); return; }
+    const row = grip.closest('.route-step');
+    dragIdx = Number(row.dataset.i);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', String(dragIdx));
+    requestAnimationFrame(() => row.classList.add('dragging'));
+  });
+  el.addEventListener('dragend', () => {
+    dragIdx = null;
+    el.querySelectorAll('.dragging,.drag-over').forEach(n => n.classList.remove('dragging', 'drag-over'));
+  });
+  el.addEventListener('dragover', e => {
+    const row = e.target.closest('.route-step');
+    if (row && dragIdx !== null) { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; row.classList.add('drag-over'); }
+  });
+  el.addEventListener('dragleave', e => {
+    const row = e.target.closest('.route-step');
+    if (row) row.classList.remove('drag-over');
+  });
+  el.addEventListener('drop', e => {
+    const row = e.target.closest('.route-step');
+    if (!row || dragIdx === null) return;
+    e.preventDefault();
+    let target = Number(row.dataset.i);
+    if (target > dragIdx) target -= 1; // corrige o índice após remover o item arrastado
+    if (target !== dragIdx) {
+      const [moved] = routeSteps.splice(dragIdx, 1);
+      routeSteps.splice(target, 0, moved);
+      renderRouteBuilder();
+    }
+    dragIdx = null;
+  });
+}
+function toggleRouteSection(id) {
+  if (routeDoneIds.includes(id)) return;
+  if (routeSteps.flat().includes(id)) {
+    routeSteps = routeSteps.map(st => st.filter(x => x !== id)).filter(st => st.length);
+  } else {
+    routeSteps.push([id]);
+  }
+  renderRouteBuilder();
+}
+function mergeStep(i) { routeSteps[i - 1] = routeSteps[i - 1].concat(routeSteps[i]); routeSteps.splice(i, 1); renderRouteBuilder(); }
+function splitStep(i) {
+  routeSteps.splice(i, 1, ...routeSteps[i].map(id => [id]));
+  renderRouteBuilder();
+}
+function removeStep(i) { routeSteps.splice(i, 1); renderRouteBuilder(); }
+document.getElementById('newProjectBtn').addEventListener('click', async () => {
+  const { sections } = await api('/api/sections' + (currentLocId ? '?loc=' + currentLocId : ''));
+  if (!sections.length) return alert('Crie pelo menos uma seção antes de abrir folhas.');
+  sectionsCache = sections;
+  routeSteps = [];
+  routeDoneIds = [];
+  routeBuilderId = 'routeBuilderNew';
+  openModal('Nova folha de obra', `
+    <label>Cliente / Obra *<input type="text" id="npClient" required></label>
+    <label>Nome do projeto<input type="text" id="npName" placeholder="Ex.: Cozinha Lote 3 (opcional)"></label>
+    <label>Descrição<input type="text" id="npDesc" placeholder="Opcional"></label>
+    <label>Prazo<input type="date" id="npDue"></label>
+    <label>Documentos (opcional)<input type="file" id="npFiles" multiple></label>
+    <h3 style="font-size:14px;margin:14px 0 6px">Rota de produção</h3>
+    <div id="routeBuilderNew"></div>
+    <label style="margin-top:10px"><input type="checkbox" id="npRelease" checked style="width:auto"> Liberar para produção agora (desmarque para liberar manualmente depois)</label>`,
+    `<button class="btn primary" onclick="createProject()">Abrir folha</button>`);
+  renderRouteBuilder();
+});
+async function createProject() {
+  const client_name = document.getElementById('npClient').value.trim();
+  if (!client_name) return alert('Informe o cliente.');
+  if (!routeSteps.length) return alert('Selecione pelo menos uma seção para a rota.');
+  try {
+    const { id } = await api('/api/projects', { method: 'POST', body: JSON.stringify({
+      client_name,
+      location_id: currentLocId,
+      name: document.getElementById('npName').value.trim(),
+      description: document.getElementById('npDesc').value.trim(),
+      due_date: document.getElementById('npDue').value,
+      route: routeSteps,
+      release_now: document.getElementById('npRelease').checked
+    })});
+    const files = document.getElementById('npFiles').files;
+    if (files.length) {
+      const fd = new FormData();
+      for (const f of files) fd.append('files', f);
+      const res = await fetch('/api/projects/' + id + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+      if (!res.ok) { const e = await res.json().catch(() => ({})); alert('Folha criada, mas houve erro no upload: ' + (e.error || '')); }
+    }
+    document.getElementById('modal').classList.add('hidden');
+    loadProjects();
+  } catch (err) { alert(err.message); }
+}
+async function openDetail(id) {
+  const { project: p, documents } = await api('/api/projects/' + id + '/detail');
+  const isImg = d => (d.mime_type || '').startsWith('image/');
+  const docsHtml = documents.length
+    ? '<div class="doc-grid">' + documents.map(d => `
+      <div class="doc-tile" title="Clique para visualizar" onclick="window.open('/api/documents/${d.id}/file?token=${token}','_blank')">
+        ${isImg(d)
+          ? `<img class="doc-thumb" src="/api/documents/${d.id}/file?token=${token}" alt="">`
+          : `<div class="doc-thumb icon">${(d.mime_type || '').includes('pdf') ? '📕' : '📄'}</div>`}
+        <div class="doc-name" title="${esc(d.original_name)}">${esc(d.original_name)}</div>
+        <div class="doc-actions">
+          <a class="btn ghost small" href="/api/documents/${d.id}/file?token=${token}&dl=1" onclick="event.stopPropagation()">Baixar</a>
+          <button class="btn ghost small" onclick="event.stopPropagation(); deleteDoc(${d.id}, ${p.id})">Excluir</button>
+        </div>
+      </div>`).join('') + '</div>'
+    : '<p class="empty">Nenhum documento anexado ainda.</p>';
+  openModal(p.client_name, `
+        <p style="margin:0 0 6px">
+      ${p.priority ? '<span class="badge red">⚠️ Urgente</span> ' : ''}
+      ${p.status === 'completed' ? '<span class="badge green">Concluída</span>'
+        : p.status === 'pending_release' ? '<span class="badge gray">Aguardando liberação</span>'
+        : '<span class="badge orange">Em produção</span>'}
+      ${p.status === 'in_progress' ? ` <span class="badge blue">${esc(p.section_name || '—')}</span>` : ''}
+    </p>
+    <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
+      <span class="muted"><b>Cliente:</b> ${esc(p.client_name)} · <b>Prazo:</b> ${fmtDate(p.due_date)}</span>
+      ${p.name ? `<span class="muted"><b>Projeto:</b> <span style="color:#1d4ed8;font-weight:700">${esc(p.name)}</span></span>` : ''}
+    </div>
+    <p class="muted" style="margin:2px 0 0"><b>Responsável:</b> ${esc(p.worker_name || 'Aguardando')}</p>
+    ${docsHtml}
+    <div class="dropzone" id="dropzone">⬆️ Clique ou arraste seu arquivo
+      <input type="file" id="detailFiles" multiple hidden>
+    </div>`,
+        `${p.status === 'pending_release' ? `<button class="btn primary small" onclick="releaseProject(${p.id})">Liberar para produção</button> ` : ''}${p.status !== 'completed' ? `<button class="btn ${p.priority ? 'ghost' : 'primary'} small" onclick="togglePriority(${p.id})">${p.priority ? 'Remover urgência' : '⚠️ Urgente'}</button>` : ''}`,
+    `${p.status !== 'completed' ? `<button class="btn ghost small" onclick="openRouteEditor(${p.id})">Editar rota</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>`);
+  // Dropzone: clique ou arrastar
+  const dz = document.getElementById('dropzone');
+  const input = document.getElementById('detailFiles');
+  input.addEventListener('change', () => uploadFiles(p.id, input.files));
+  dz.addEventListener('click', () => input.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); uploadFiles(p.id, e.dataTransfer.files); });
+}
+async function uploadFiles(files) {
+  if (!files || !files.length || !jobProjectId) return;
+  const all = Array.from(files);
+  const msg = document.getElementById('docsMsg');
+  let sent = 0, failed = 0;
+  for (let i = 0; i < all.length; i += 10) {
+    const fd = new FormData();
+    for (const f of all.slice(i, i + 10)) fd.append('files', f);
+    try {
+      const res = await fetch('/api/projects/' + jobProjectId + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+      if (res.ok) sent += Math.min(10, all.length - i); else failed++;
+    } catch (e) { failed++; }
+  }
+  msg.textContent = failed ? sent + ' enviado(s), ' + failed + ' lote(s) falharam.' : sent + ' arquivo(s) enviado(s).';
+  await renderDocsStrip();
+}
+async function deleteDoc(docId, projectId) {
+  if (!confirm('Excluir este documento?')) return;
+  try {
+    await api('/api/documents/' + docId, { method: 'DELETE' });
+    openDetail(projectId); loadProjects();
+  } catch (err) { alert(err.message); }
+}
+async function togglePriority(id) {
+  try {
+    await api('/api/projects/' + id + '/priority', { method: 'POST' });
+    openDetail(id); loadProjects();
+  } catch (err) { alert(err.message); }
+}
+async function releaseProject(id) {
+  try { await api('/api/projects/' + id + '/release', { method: 'POST' }); document.getElementById('modal').classList.add('hidden'); loadProjects(); }
+  catch (err) { alert(err.message); }
+}
+async function openRouteEditor(id) {
+  const { project: p, sections, route } = await api('/api/projects/' + id + '/detail');
+  if (p.status === 'completed') return alert('Esta folha já está concluída — a rota não pode mais ser editada.');
+  sectionsCache = sections;
+  routeDoneIds = route.filter(r => r.status === 'done').map(r => r.section_id);
+  const remaining = route.filter(r => r.status !== 'done');
+  const byStep = {};
+  for (const r of remaining) (byStep[r.step] = byStep[r.step] || []).push(r.section_id);
+  const keys = Object.keys(byStep).sort((a, b) => a - b);
+  routeSteps = keys.length ? keys.map(k => byStep[k]) : sections.filter(s => !routeDoneIds.includes(s.id)).map(s => [s.id]);
+  routeBuilderId = 'routeBuilderEdit';
+    openModal('Editar rota — ' + p.client_name, `<div id="routeBuilderEdit"></div>`,
+    `<button class="btn primary small" onclick="saveRoute(${p.id})">Salvar rota</button>`,
+    `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
+  renderRouteBuilder();
+}
+async function saveRoute(id) {
+  if (!routeSteps.length) return alert('A rota precisa de pelo menos uma seção.');
+  try {
+    await api('/api/projects/' + id + '/route', { method: 'PUT', body: JSON.stringify({ route: routeSteps }) });
+    document.getElementById('modal').classList.add('hidden');
+    loadProjects(); openDetail(id);
+  } catch (err) { alert(err.message); }
+}
+async function showHistory(id) {
+  const [data, detail] = await Promise.all([
+    api('/api/projects/' + id + '/history'),
+    api('/api/projects/' + id + '/detail')
+  ]);
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada' };
+  // Timeline estilo rastreamento: pontos ligados por linha
+  let timeline = '';
+  if (detail.route && detail.route.length) {
+    const byStep = {};
+    for (const r of detail.route) (byStep[r.step] = byStep[r.step] || []).push(r);
+    const nameOf = sid => (detail.sections.find(s => s.id === sid) || {}).name || '?';
+    let currentSet = false;
+    timeline = Object.keys(byStep).sort((a, b) => a - b).map(k => {
+      const rows = byStep[k];
+      const allDone = rows.every(r => r.status === 'done');
+      const cls = allDone ? 'done' : (!currentSet ? (currentSet = true, 'current') : 'pending');
+      return `<div class="t-step ${cls}"><span class="t-dot"></span><span class="t-label">${rows.map(r => esc(nameOf(r.section_id))).join(' + ')}</span></div>`;
+    }).join('');
+  } else {
+    const visited = [];
+    for (const h of data.history) if (h.section_name && !visited.includes(h.section_name)) visited.push(h.section_name);
+    timeline = visited.map((name, i) => {
+      const isCurrent = i === visited.length - 1 && data.project.status !== 'completed';
+      return `<div class="t-step ${isCurrent ? 'current' : 'done'}"><span class="t-dot"></span><span class="t-label">${esc(name)}</span></div>`;
+    }).join('');
+  }
+  const rows = data.history.map(h => `
+    <tr><td>${esc(h.created_at)}</td><td>${esc(h.section_name || '—')}</td><td>${esc(h.worker_name || '—')}</td><td>${labels[h.action] || h.action}</td></tr>`).join('');
+  openModal('Histórico — ' + projectLabel(data.project), `
+    ${timeline ? `<div class="timeline">${timeline}</div>` : ''}
+    <table><thead><tr><th>Data</th><th>Seção</th><th>Quem</th><th>Ação</th></tr></thead><tbody>${rows}</tbody></table>`,
+    '', `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
+}
+// ===== Anotações da equipe =====
+const noteIcons = { 'Problema mecânico': '🔧', 'Falta de material': '📦', 'Aguardando cliente': '⏳', 'Alerta geral': '⚠️', 'Emergência médica': '🚑', 'Incêndio': '🔥' };
+async function showNotes(id) {
+  const { notes } = await api('/api/projects/' + id + '/notes');
+  const p = projectsCache.find(x => x.id === id);
+  const rows = notes.length ? notes.map(n => {
+    const isEmergency = /emergência|incêndio/i.test(n.alert_type || '');
+    const icon = n.is_alert ? (noteIcons[n.alert_type] || '⚠️') : '💬';
+    return `<div class="notif-item ${isEmergency ? 'note-emergency' : n.is_alert ? 'unread' : ''}">
+      <b>${icon} ${esc(n.author_name || '?')}${n.section_name ? ' · ' + esc(n.section_name) : ''}${n.is_alert ? ' — ' + esc(n.alert_type || 'Alerta') : ''}</b>
+      ${n.note ? `<p>${esc(n.note)}</p>` : ''}
+      <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+    </div>`;
+  }).join('') : '<p class="empty">Nenhuma anotação ainda.</p>';
+  openModal('Anotações — ' + projectLabel(p || { client_name: '?' }), rows,
+    '', `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
+}
+// Trabalhadores
+async function loadWorkers() {
+  const q = currentLocId ? '?loc=' + currentLocId : '';
+  const [{ workers }, { sections }] = await Promise.all([api('/api/company/workers' + q), api('/api/company/sections' + q)]);
+  const sel = document.getElementById('wSection');
+  sel.innerHTML = sections.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  const el = document.getElementById('workersList');
+  if (!workers.length) { el.innerHTML = '<p class="empty">Nenhum trabalhador criado ainda.</p>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Seção</th><th>Status</th><th>Ações</th></tr></thead><tbody>` +
+    workers.map(w => `
+      <tr>
+        <td>${esc(w.name)}</td>
+        <td>${esc(w.email)}</td>
+        <td>${esc(w.section_name || '—')}</td>
+        <td><span class="badge ${w.active ? 'green' : 'gray'}">${w.active ? 'Ativo' : 'Inativo'}</span></td>
+        <td><div class="row-actions">
+          <button class="btn ghost small" onclick="revealPass(${w.id}, this)">👁 Ver senha</button>
+          <button class="btn ghost small" onclick="editWorker(${w.id})">Editar</button>
+        </div></td>
+      </tr>`).join('') + '</tbody></table>';
+}
+document.getElementById('createWorkerBtn').addEventListener('click', async () => {
+  const name = document.getElementById('wName').value.trim();
+  const email = document.getElementById('wEmail').value.trim();
+  const password = document.getElementById('wPass').value;
+  const section_id = Number(document.getElementById('wSection').value);
+  if (!name || !email || !password) return alert('Preencha nome, e-mail e senha.');
+  try {
+    await api('/api/company/workers', { method: 'POST', body: JSON.stringify({ name, email, password, section_id }) });
+    document.getElementById('wName').value = '';
+    document.getElementById('wEmail').value = '';
+    document.getElementById('wPass').value = '';
+    loadWorkers();
+  } catch (err) { alert(err.message); }
+});
+async function revealPass(id, btn) {
+  try {
+    const data = await api('/api/company/workers/' + id + '/reveal', { method: 'POST' });
+    const span = document.createElement('span');
+    span.className = 'reveal-pass';
+    span.textContent = ' ' + data.password;
+    btn.insertAdjacentElement('afterend', span);
+    setTimeout(() => span.remove(), 15000);
+  } catch (err) { alert(err.message); }
+}
+async function editWorker(id) {
+  const q = currentLocId ? '?loc=' + currentLocId : '';
+  const [{ workers }, { sections }] = await Promise.all([api('/api/company/workers' + q), api('/api/company/sections' + q)]);
+  const w = workers.find(x => x.id === id);
+  openModal('Editar — ' + esc(w.name), `
+    <label>Seção
+      <select id="ewSection">${sections.map(s => `<option value="${s.id}" ${s.id === w.section_id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
+    </label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px">
+      <input type="checkbox" id="ewActive" style="width:auto;margin:0" ${w.active ? 'checked' : ''}> Conta ativa
+    </label>
+    <label>Nova senha (opcional)
+      <input type="text" id="ewPass" placeholder="Deixe vazio para manter">
+    </label>
+    <button class="btn primary" onclick="saveWorker(${w.id})">Salvar</button>
+  `);
+}
+async function saveWorker(id) {
+  const body = {
+    section_id: Number(document.getElementById('ewSection').value),
+    active: document.getElementById('ewActive').checked
+  };
+  const pass = document.getElementById('ewPass').value;
+  if (pass) body.password = pass;
+  try {
+    await api('/api/company/workers/' + id, { method: 'PUT', body: JSON.stringify(body) });
+    document.getElementById('modal').classList.add('hidden');
+    loadWorkers();
+  } catch (err) { alert(err.message); }
+}
+// Seções
+async function loadSections() {
+  const { sections } = await api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : ''));
+  const el = document.getElementById('sectionsList');
+  if (!sections.length) { el.innerHTML = '<p class="empty">Nenhuma seção criada.</p>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Ordem</th><th>Nome</th><th>Ações</th></tr></thead><tbody>` +
+    sections.map(s => `
+      <tr>
+        <td>${s.position}</td>
+        <td><input value="${esc(s.name)}" id="secName-${s.id}" style="max-width:260px"></td>
+        <td><div class="row-actions">
+          <button class="btn ghost small" onclick="renameSection(${s.id})">Renomear</button>
+          <button class="btn ghost small" onclick="revealSectionPass(${s.id}, this)">👁 Ver senha</button>
+        </div></td>
+      </tr>`).join('') + '</tbody></table>';
+}
+document.getElementById('createSectionBtn').addEventListener('click', async () => {
+  const name = document.getElementById('sName').value.trim();
+  if (!name) return alert('Informe o nome da seção.');
+  try {
+    await api('/api/company/sections', { method: 'POST', body: JSON.stringify({ name, location_id: currentLocId }) });
+    document.getElementById('sName').value = '';
+    loadSections();
+  } catch (err) { alert(err.message); }
+});
+async function renameSection(id) {
+  const name = document.getElementById('secName-' + id).value.trim();
+  if (!name) return;
+  try { await api('/api/company/sections/' + id, { method: 'PUT', body: JSON.stringify({ name }) }); loadSections(); }
+  catch (err) { alert(err.message); }
+}
+async function revealSectionPass(id, btn) {
+  try {
+    const data = await api('/api/company/sections/' + id + '/reveal', { method: 'POST' });
+    const span = document.createElement('span');
+    span.className = 'reveal-pass';
+    span.textContent = data.password ? ' ' + data.password : ' (sem senha — login agora é por trabalhador)';
+    btn.insertAdjacentElement('afterend', span);
+    setTimeout(() => span.remove(), 15000);
+  } catch (err) { alert(err.message); }
+}
+
+// ===== Avatar no chip + sino + dropdown =====
+function setAvatar(el, withDot) {
+  el.innerHTML = (user.avatar ? `<img src="${esc(user.avatar)}" alt="Foto de perfil">` : `<span class="avatar-initial">${esc((user.name || '?').trim()[0].toUpperCase())}</span>`) + (withDot ? '<span class="status-dot"></span>' : '');
+}
+setAvatar(document.getElementById('chipAvatar'), true);
+document.getElementById('chipName').textContent = user.name || '';
+
+const notifPanel = document.getElementById('notifPanel');
+const userMenu = document.getElementById('userMenu');
+document.getElementById('bellBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  notifPanel.hidden = !notifPanel.hidden;
+  userMenu.hidden = true;
+});
+document.getElementById('chipBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  userMenu.hidden = !userMenu.hidden;
+  notifPanel.hidden = true;
+});
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.bell-wrap')) notifPanel.hidden = true;
+  if (!e.target.closest('.menu-wrap')) userMenu.hidden = true;
+});
+document.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') { notifPanel.hidden = true; userMenu.hidden = true; }
+});
+userMenu.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
+document.getElementById('menuLogout').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear();
+  location.href = 'index.html';
+});
+
+(async () => {
+  try {
+    const { locations: locs } = await api('/api/locations');
+    const l = locs.find(x => x.id === currentLocId);
+    if (l) {
+      document.getElementById('locName').textContent = ' · ' + l.name;
+    } else if (locs.length) {
+      currentLocId = locs[0].id;
+      document.getElementById('locName').textContent = ' · ' + locs[0].name;
+    }
+  } catch (e) {}
+  const tabParam = new URLSearchParams(location.search).get('tab');
+  if (tabParam && ['projects', 'workers', 'sections'].includes(tabParam)) {
+    document.querySelectorAll('.tab').forEach(x => x.classList.toggle('active', x.dataset.tab === tabParam));
+    document.querySelectorAll('.panel').forEach(p => p.classList.add('hidden'));
+    document.getElementById('panel-' + tabParam).classList.remove('hidden');
+    if (tabParam === 'workers') loadWorkers();
+    if (tabParam === 'sections') loadSections();
+  }
+  loadProjects();
+})();
+setInterval(() => {
+  try {
+    if (!document.getElementById('panel-projects').classList.contains('hidden')) loadProjects();
+    loadBell();
+  } catch (e) {}
+}, 3000);
+
+// ===== Rail (sidebar) =====
+const rail = document.getElementById('rail');
+const flyout = document.getElementById('flyout');
+let hoverTimer = null, hideTimer = null;
+function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(() => { flyout.hidden = true; }, 900); }
+function showFlyout(l, item) {
+  document.getElementById('flyoutTitle').textContent = l.name;
+  document.getElementById('flyProjects').href = 'manager.html?loc=' + l.id + '&tab=projects';
+  document.getElementById('flySections').href = 'manager.html?loc=' + l.id + '&tab=sections';
+  document.getElementById('flyGroups').href = 'manager.html?loc=' + l.id + '&tab=workers';
+  flyout.style.top = item.offsetTop + 'px';
+  flyout.style.left = (rail.offsetWidth - 4) + 'px';
+  flyout.hidden = false;
+}
+flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+flyout.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseleave', scheduleHide);
+rail.addEventListener('mouseenter', () => clearTimeout(hideTimer));
+document.getElementById('railToggle')?.addEventListener('click', () => {
+  rail.classList.toggle('expanded');
+  document.body.classList.toggle('rail-open');
+});
+(async () => {
+  try {
+    const { company } = await api('/api/company');
+    const logoEl = document.getElementById('railLogo');
+    if (company.logo) logoEl.innerHTML = `<img src="/${esc(company.logo)}" alt="">`;
+    const { locations: locs } = await api('/api/locations');
+    const box = document.getElementById('locIcons');
+    const currentLoc = new URLSearchParams(location.search).get('loc');
+    locs.forEach(l => {
+      const b = document.createElement('button');
+      b.className = 'rail-item loc' + (currentLoc == l.id ? ' active' : '');
+      b.title = l.name;
+      b.innerHTML = `<span class="rail-ico">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span><span class="rail-label">${esc(l.name)}</span>`;
+      b.addEventListener('mouseenter', () => { clearTimeout(hideTimer); clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showFlyout(l, b), 200); });
+      b.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); scheduleHide(); });
+      b.addEventListener('click', () => showFlyout(l, b));
+      box.appendChild(b);
+    });
+  } catch (e) {}
+})();
+document.getElementById('driversBtn').addEventListener('click', () => alert('Gerenciar Motoristas chega em uma próxima etapa.'));
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.rail') && !e.target.closest('.flyout')) flyout.hidden = true;
+});
+
+
+// ===== Sino: notificações reais =====
+async function loadBell() {
+  try {
+    const { notifications, unread } = await api('/api/notifications');
+    const badge = document.getElementById('bellBadge');
+    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
+    const panel = document.getElementById('notifPanel');
+    if (panel && notifications.length) {
+      panel.innerHTML = notifications.map(n => `
+        <div class="notif-item ${n.type === 'emergency' ? 'note-emergency' : n.read ? '' : 'unread'}">
+          <b>${esc(n.title)}</b>
+          <p>${esc(n.body || '')}</p>
+          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
+        </div>`).join('');
+      panel.addEventListener('click', async () => {
+        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
+        if (badge) { badge.textContent = '0'; badge.hidden = true; }
+      }, { once: true });
+    }
+  } catch (e) {}
+}
+loadBell();
+
+</script>
+</body>
+</html>

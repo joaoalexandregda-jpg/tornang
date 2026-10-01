@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Perfil — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="topbar">
+  <h1>Tornang — <span id="companyName"></span></h1>
+  <div class="user"><span id="userName"></span><button class="btn ghost small" id="backBtn">← Voltar</button><button class="btn ghost small" id="logoutBtn">Sair</button></div>
+</div>
+<div class="panel" style="max-width:900px;margin:0 auto">
+
+  <div class="card" style="margin-bottom:24px">
+    <h2 style="margin-bottom:14px">Informações da empresa</h2>
+    <form id="profileForm">
+      <label>Nome da empresa *<input type="text" id="fName" required></label>
+      <label>E-mail da conta (fixo)<input type="email" id="fEmail" disabled style="background:#f1f5f9"></label>
+      <label>NIF (opcional)<input type="text" id="fNif"></label>
+      <label>Endereço (opcional)<input type="text" id="fAddress"></label>
+      <label>Telefone (opcional)<input type="text" id="fPhone"></label>
+      <button type="submit" class="btn primary">Salvar informações</button>
+    </form>
+    <p id="profileMsg" class="muted" style="margin-top:10px"></p>
+  </div>
+
+  <div class="card" style="margin-bottom:24px">
+    <h2 style="margin-bottom:14px">Colaboradores (gerentes)</h2>
+    <p class="muted" style="margin-bottom:14px">Colaboradores entram pelo Portal da Empresa com o próprio e-mail e têm os mesmos poderes que você, exceto alterar o e-mail e a senha da conta principal.</p>
+    <div class="form-row">
+      <div class="field"><input id="cName" placeholder="Nome do colaborador"></div>
+      <div class="field"><input id="cEmail" type="email" placeholder="E-mail do colaborador"></div>
+      <button class="btn primary" id="addCollabBtn" style="width:auto">Adicionar</button>
+    </div>
+    <div id="collabList"></div>
+  </div>
+
+  <div class="card">
+    <h2 style="margin-bottom:14px">Minha senha</h2>
+    <form id="passForm">
+      <label>Senha atual<input type="password" id="pCurrent" required></label>
+      <label>Nova senha<input type="password" id="pNew" required minlength="4"></label>
+      <label>Confirmar nova senha<input type="password" id="pConfirm" required minlength="4"></label>
+      <button type="submit" class="btn primary">Alterar minha senha</button>
+    </form>
+    <p id="passMsg" class="muted" style="margin-top:10px"></p>
+  </div>
+</div>
+
+<div id="modal" class="modal-backdrop hidden">
+  <div class="modal">
+    <h2 id="modalTitle"></h2>
+    <div id="modalBody"></div>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'index.html';
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+if (user.role !== 'manager') location.href = 'worker.html';
+document.getElementById('userName').textContent = user.name;
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+
+function openModal(title, body) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = body;
+  document.getElementById('modal').classList.remove('hidden');
+}
+document.getElementById('modal').addEventListener('click', e => { if (e.target.id === 'modal') e.target.classList.add('hidden'); });
+
+// Perfil
+async function loadProfile() {
+  const { company } = await api('/api/company');
+  document.getElementById('companyName').textContent = company.name;
+  document.getElementById('fName').value = company.name || '';
+  document.getElementById('fEmail').value = company.email || '';
+  document.getElementById('fNif').value = company.nif || '';
+  document.getElementById('fAddress').value = company.address || '';
+  document.getElementById('fPhone').value = company.phone || '';
+}
+
+document.getElementById('profileForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  try {
+    const { company } = await api('/api/company/profile', { method: 'PUT', body: JSON.stringify({
+      company_name: document.getElementById('fName').value.trim(),
+      nif: document.getElementById('fNif').value.trim(),
+      address: document.getElementById('fAddress').value.trim(),
+      phone: document.getElementById('fPhone').value.trim()
+    })});
+    document.getElementById('companyName').textContent = company.name;
+    localStorage.setItem('company', JSON.stringify(company));
+    document.getElementById('profileMsg').textContent = 'Informações salvas.';
+  } catch (err) { document.getElementById('profileMsg').textContent = err.message; }
+});
+
+// Colaboradores
+async function loadCollabs() {
+  const { collaborators } = await api('/api/company/collaborators');
+  const el = document.getElementById('collabList');
+  if (!collaborators.length) { el.innerHTML = '<p class="empty">Nenhum colaborador ainda.</p>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Status</th><th>Ações</th></tr></thead><tbody>` +
+    collaborators.map(c => `
+      <tr>
+        <td>${esc(c.name)} ${c.is_owner ? '<span class="badge green">Principal</span>' : ''}</td>
+        <td>${esc(c.email)}</td>
+        <td><span class="badge ${c.active ? 'green' : 'gray'}">${c.active ? 'Ativo' : 'Inativo'}</span></td>
+        <td><div class="row-actions">
+          ${!c.is_owner ? `<button class="btn ghost small" onclick="resetPass(${c.id})">Redefinir senha</button>
+          <button class="btn ghost small" onclick="toggleActive(${c.id}, ${c.active ? 'false' : 'true'})">${c.active ? 'Desativar' : 'Ativar'}</button>
+          <button class="btn ghost small" onclick="removeCollab(${c.id})">Remover</button>` : '<span class="muted">Conta principal</span>'}
+        </div></td>
+      </tr>`).join('') + '</tbody></table>';
+}
+
+document.getElementById('addCollabBtn').addEventListener('click', async () => {
+  const name = document.getElementById('cName').value.trim();
+  const email = document.getElementById('cEmail').value.trim();
+  if (!name || !email) return alert('Preencha nome e e-mail do colaborador.');
+  try {
+    const { password } = await api('/api/company/collaborators', { method: 'POST', body: JSON.stringify({ name, email }) });
+    document.getElementById('cName').value = '';
+    document.getElementById('cEmail').value = '';
+    openModal('Colaborador criado', `
+      <p style="margin-bottom:10px">Passe esta senha inicial para <b>${esc(email)}</b>. Ela não será exibida novamente.</p>
+      <p style="font-size:22px;font-weight:700;letter-spacing:2px;text-align:center;background:#f1f5f9;padding:12px;border-radius:8px">${esc(password)}</p>
+      <button class="btn primary" style="margin-top:14px" onclick="document.getElementById('modal').classList.add('hidden')">Copiei, fechar</button>`);
+    loadCollabs();
+  } catch (err) { alert(err.message); }
+});
+
+async function resetPass(id) {
+  if (!confirm('Gerar uma nova senha para este colaborador? A senha atual deixa de funcionar.')) return;
+  try {
+    const { password } = await api('/api/company/collaborators/' + id + '/reset', { method: 'POST' });
+    openModal('Nova senha gerada', `
+      <p style="margin-bottom:10px">Passe esta senha para o colaborador. Ela não será exibida novamente.</p>
+      <p style="font-size:22px;font-weight:700;letter-spacing:2px;text-align:center;background:#f1f5f9;padding:12px;border-radius:8px">${esc(password)}</p>
+      <button class="btn primary" style="margin-top:14px" onclick="document.getElementById('modal').classList.add('hidden')">Copiei, fechar</button>`);
+  } catch (err) { alert(err.message); }
+}
+
+async function toggleActive(id, active) {
+  try { await api('/api/company/collaborators/' + id, { method: 'PUT', body: JSON.stringify({ active }) }); loadCollabs(); }
+  catch (err) { alert(err.message); }
+}
+
+async function removeCollab(id) {
+  if (!confirm('Remover este colaborador? O acesso dele é cancelado imediatamente.')) return;
+  try { await api('/api/company/collaborators/' + id, { method: 'DELETE' }); loadCollabs(); }
+  catch (err) { alert(err.message); }
+}
+
+// Minha senha
+document.getElementById('passForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const msg = document.getElementById('passMsg');
+  const p1 = document.getElementById('pNew').value;
+  const p2 = document.getElementById('pConfirm').value;
+  if (p1 !== p2) { msg.textContent = 'As senhas não coincidem.'; return; }
+  try {
+    await api('/api/manager/change-password', { method: 'POST', body: JSON.stringify({
+      current: document.getElementById('pCurrent').value, password: p1 }) });
+    msg.textContent = 'Senha alterada.';
+    document.getElementById('passForm').reset();
+  } catch (err) { msg.textContent = err.message; }
+});
+
+document.getElementById('backBtn').addEventListener('click', () => location.href = 'manager.html');
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear();
+  location.href = 'index.html';
+});
+
+loadProfile();
+loadCollabs();
+</script>
+</body>
+</html>

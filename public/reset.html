@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Redefinir senha — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="auth-wrap">
+  <div class="card auth-card">
+    <h1>Redefinir senha</h1>
+    <form id="resetForm">
+      <label>Nova senha<input type="password" id="password" required minlength="4"></label>
+      <label>Confirmar senha<input type="password" id="confirm" required></label>
+      <button type="submit" class="btn primary">Redefinir senha</button>
+    </form>
+    <p id="msg" class="muted" style="margin-top:12px"></p>
+    <div class="auth-links"><a href="login-company.html">Voltar ao login</a></div>
+  </div>
+</div>
+<script>
+const token = new URLSearchParams(location.search).get('token');
+document.getElementById('resetForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const p1 = document.getElementById('password').value;
+  const p2 = document.getElementById('confirm').value;
+  const msg = document.getElementById('msg');
+  if (p1 !== p2) { msg.textContent = 'As senhas não coincidem.'; return; }
+  const res = await fetch('/api/reset-password', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ token, password: p1 })
+  });
+  const data = await res.json();
+  if (!res.ok) { msg.textContent = data.error || 'Erro'; return; }
+  msg.textContent = 'Senha redefinida!';
+  setTimeout(() => location.href = 'login-company.html', 1500);
+});
+</script>
+</body>
+</html>
