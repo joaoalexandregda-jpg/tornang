@@ -596,3 +596,61 @@ body { background: var(--flex-bg); color: var(--flex-text); }
 .loc-stats .danger b { color: var(--flex-danger); }
 .recent-list li { border-bottom: 1px solid #EEF1F0; color: var(--flex-text); }
 .muted { color: var(--flex-muted) !important; }
+
+/* ==================== v4.1.0 — Espaço, respiro e grid centralizado ==================== */
+
+/* Container central: nunca estica até as bordas */
+.dash-wrap, .dash-main, main {
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 32px 40px 64px;
+}
+
+/* Greeting com respiro */
+.dash-header { margin-bottom: 32px; }
+.dash-header h2 { font-size: 26px; letter-spacing: -0.3px; }
+.dash-header p { margin-top: 4px; }
+
+/* KPIs: no máximo 3 por linha, largura limitada, gap uniforme */
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 24px;
+  margin-bottom: 40px;
+}
+.kpi {
+  padding: 24px 26px;
+  border-radius: 14px;
+  min-height: 118px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+.kpi b { font-size: 32px; line-height: 1; }
+.kpi span { font-size: 13.5px; margin-top: 8px; line-height: 1.4; }
+
+/* Seções com separação clara */
+.dash-section-title { margin: 0 0 16px; font-size: 17px; }
+
+/* Cards de conteúdo: padding generoso e largura máxima */
+.loc-card, .recent-card {
+  padding: 26px 28px;
+  border-radius: 14px;
+  margin-bottom: 24px;
+}
+.loc-card h3 { font-size: 16px; margin-bottom: 14px; }
+.loc-thumb { width: 46px; height: 46px; border-radius: 12px; font-size: 18px; }
+.loc-stats { gap: 18px; margin: 16px 0 18px; }
+.loc-stats > div { padding: 10px 14px; border-radius: 10px; }
+
+/* Lista de atividade com respiro entre itens */
+.recent-list li { padding: 14px 0; }
+.recent-card .muted { padding: 24px 0; text-align: center; }
+
+/* Topbar fixa (não some ao rolar) */
+.topbar { position: sticky; top: 0; z-index: 50; }
+
+@media (max-width: 900px) {
+  .kpi-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .dash-wrap, .dash-main, main { padding: 24px 20px 48px; }
+}

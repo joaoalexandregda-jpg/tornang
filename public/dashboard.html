@@ -132,9 +132,9 @@ function renderRail() {
 function renderDash(dash) {
   const totals = dash.locations.reduce((acc, l) => ({ active: acc.active + l.active_projects, urgent: acc.urgent + l.urgent, overdue: acc.overdue + l.overdue }), { active: 0, urgent: 0, overdue: 0 });
   document.getElementById('kpiRow').innerHTML = `
-    <div class="kpi ok"><b>${totals.active}</b><span>Projetos ativos</span></div>
-    <div class="kpi ${totals.urgent ? 'warn' : ''}"><b>${totals.urgent}</b><span>Urgentes</span></div>
-    <div class="kpi ${totals.overdue ? 'danger' : ''}"><b>${totals.overdue}</b><span>Atrasados</span></div>
+    <div class="kpi ok"><b>${totals.active}</b><span>Folhas em produção</span></div>
+    <div class="kpi ${totals.urgent ? 'warn' : ''}"><b>${totals.urgent}</b><span>Folhas urgentes hoje</span></div>
+    <div class="kpi ${totals.overdue ? 'danger' : ''}"><b>${totals.overdue}</b><span>Folhas com atraso</span></div>
     <div class="kpi"><b>${dash.locations.length}</b><span>Locais</span></div>`;
 
   const grid = document.getElementById('dashGrid');
@@ -150,7 +150,7 @@ function renderDash(dash) {
         <div class="${l.overdue ? 'danger' : ''}"><b>${l.overdue}</b><span>atrasados</span></div>
       </div>
       <ul class="loc-urgent">
-        ${l.urgent_list.map(p => `<li>${esc(p.name || p.client_name)} <span class="muted">· ${esc(p.section_name || '—')}</span></li>`).join('') || '<li class="muted">Nada urgente por aqui.</li>'}
+        ${l.urgent_list.map(p => `<li>${esc(p.name || p.client_name)} <span class="muted">· ${esc(p.section_name || '—')}</span></li>`).join('') || '<li class="muted">Nenhuma folha urgente no momento — tudo em dia</li>'}
       </ul>
       <button class="btn primary small open-loc" data-id="${l.id}">Abrir local</button>
     </div>`).join('') || '<p class="muted">Nenhum local encontrado.</p>';
@@ -159,7 +159,7 @@ function renderDash(dash) {
   const rl = document.getElementById('recentList');
   rl.innerHTML = (dash.recent || []).map(r => `
     <li><b>${esc(r.user_name || 'Sistema')}</b> <span>${esc(r.action)}</span> <span class="muted">— ${esc(r.project_name || r.client_name || '')}</span> <span class="when">${esc((r.created_at || '').slice(11, 16))}</span></li>
-  `).join('') || '<li class="muted">Sem atividade registada ainda.</li>';
+  `).join('') || '<li class="muted">Nenhuma atividade ainda. Ela aparece aqui assim que a equipe começar a trabalhar.</li>';
 }
 
 (async () => {
