@@ -6,7 +6,6 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const multer = require('multer');
 const db = require('./database');
-const fs = require('fs');
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
 
