@@ -705,3 +705,20 @@ body:not(.with-rail) .topbar { left: 0; }
 
 /* Devolve o espaço da topbar fixa no dashboard e no main (locations) */
 .dash-wrap, .dash-main, main { padding-top: 88px; }
+
+/* ===== v4.3 — Topbar conectada ao rail + manager centralizado ===== */
+
+/* 1) Topbar encosta no rail em todas as páginas com rail */
+body.with-rail > .topbar { margin-left: 0 !important; }
+
+/* 2) Manager: abas alinhadas com o conteúdo, centralizadas na área útil */
+body > .tabs {
+  margin-top: 88px;
+  margin-left: calc(var(--rail-w) + max(24px, (100% - 1160px) / 2));
+}
+body > .tabs ~ .panel {
+  margin-top: 16px !important;
+  margin-left: calc(var(--rail-w) + max(24px, (100% - 1160px) / 2)) !important;
+  margin-right: 24px;
+  max-width: 1160px;
+}
