@@ -144,7 +144,7 @@ async function loadProjects() {
 }
 let projectsCache = [];
 function renderProjects() {
-// no início de renderProjects():
+const today = new Date().toISOString().split('T')[0];
 const term = document.getElementById('pSearch').value.toLowerCase().trim();
 const secF = document.getElementById('pSectionFilter').value;
 const stF = document.getElementById('pStatusFilter').value;
@@ -189,7 +189,6 @@ function sectionName(id) {
   return s ? s.name : '?';
 }
 function renderRouteBuilder() {
-  const today = new Date().toISOString().slice(0, 10);
   const el = document.getElementById(routeBuilderId);
   if (!el) return;
   const used = new Set(routeSteps.flat());

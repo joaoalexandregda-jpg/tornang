@@ -349,7 +349,7 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
   const loc = Number(req.query.loc) || null;
   const projects = db.prepare(`
     SELECT p.*, s.name AS section_name, u.name AS worker_name,
-      (SELECT COUNT(*) FROM project_documents d WHERE d.project_id = p.id) AS doc_count
+      (SELECT COUNT(*) FROM project_documents d WHERE d.project_id = p.id) AS doc_count,
       (SELECT GROUP_CONCAT(r.section_id) FROM project_route r WHERE r.project_id = p.id) AS route_ids
     FROM projects p
     LEFT JOIN sections s ON s.id = p.current_section_id
