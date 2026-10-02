@@ -722,3 +722,11 @@ body > .tabs ~ .panel {
   margin-right: 24px;
   max-width: 1160px;
 }
+
+/* ===== v4.5 — Trabalhadores: senha, ícones e badges ===== */
+.icon-btn { background: transparent; border: 0; cursor: pointer; font-size: 15px; padding: 6px 8px; border-radius: 8px; }
+.icon-btn:hover { background: rgba(15,23,42,.08); }
+.icon-btn.danger:hover { background: rgba(220,38,38,.12); }
+.pass-cell { display: inline-flex; align-items: center; gap: 4px; }
+.pass-mask { font-family: monospace; letter-spacing: 2px; color: var(--flex-muted); min-width: 70px; display: inline-block; }
+.badge.orange { background: #FFEDD5; color: #C2410C; }

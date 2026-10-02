@@ -180,6 +180,8 @@ addColumn('users', 'location_id', 'location_id INTEGER');
 addColumn('projects', 'location_id', 'location_id INTEGER');
 // Migração v4.4.0: NIF do local
 addColumn('locations', 'nif', 'nif TEXT');
+// Migração v4.5.0: presença online (status automático)
+addColumn('users', 'last_seen', 'last_seen TEXT');
 
 // Backfill: cria a local SEDE para cada empresa que ainda não tem nenhuma
 db.prepare(`

@@ -19,9 +19,9 @@
   </nav>
   <div class="flyout" id="flyout" hidden>
     <div class="flyout-title" id="flyoutTitle"></div>
-    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
-    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
-    <a class="flyout-link" id="flyGroups" href="#">👥 Grupos de usuários</a>
+<a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
+<a class="flyout-link" id="flyGroups" href="#">👥 Trabalhadores</a>
+<a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
   </div>
 </aside>
 <div class="topbar">
@@ -55,24 +55,24 @@
 </div>
 <div id="panel-projects" class="panel">
   <div class="toolbar">
-    <input id="pSearch" placeholder="Buscar cliente...">
+    <input id="pSearch" placeholder="Buscar cliente ou projeto...">
     <select id="pStatusFilter">
   <option value="all">Todos os status</option>
   <option value="in_progress">Em produção</option>
   <option value="pending_release">Aguardando liberação</option>
   <option value="completed">Concluídas</option>
 </select>
+<select id="pSectionFilter"><option value="all">Todas as seções</option></select>
     <button class="btn primary" id="newProjectBtn" style="width:auto">+ Nova folha</button>
   </div>
   <div id="projectsTable"></div>
 </div>
 <div id="panel-workers" class="panel hidden">
-  <div class="form-row">
-    <div class="field"><input id="wName" placeholder="Nome"></div>
-    <div class="field"><input id="wEmail" placeholder="E-mail"></div>
-    <div class="field"><input id="wPass" placeholder="Senha inicial"></div>
-    <div class="field"><select id="wSection"></select></div>
-    <button class="btn primary" id="createWorkerBtn" style="width:auto">Criar trabalhador</button>
+  <div class="toolbar">
+    <input id="wSearch" placeholder="Buscar trabalhador...">
+    <select id="wSectionFilter"><option value="all">Todas as seções</option><option value="none">Sem seção</option></select>
+    <select id="wStatusFilter"><option value="all">Todos os status</option><option value="online">Online</option><option value="offline">Offline</option></select>
+    <button class="btn primary" id="newWorkerBtn" style="width:auto">+ Novo trabalhador</button>
   </div>
   <div id="workersList"></div>
 </div>
@@ -131,19 +131,30 @@ document.getElementById('modalClose').addEventListener('click', () => document.g
 function fmtDate(d) { return d ? d.split('-').reverse().join('/') : '—'; }
 function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
 // Projetos
-let projectsCache = [];
 async function loadProjects() {
-  const { projects } = await api('/api/projects' + (currentLocId ? '?loc=' + currentLocId : ''));
+  const q = currentLocId ? '?loc=' + currentLocId : '';
+  const [{ projects }, { sections }] = await Promise.all([api('/api/projects' + q), api('/api/company/sections' + q)]);
   projectsCache = projects;
+  sectionsCache = sections;
+  const sel = document.getElementById('pSectionFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">Todas as seções</option>' + sections.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  sel.value = cur;
   renderProjects();
 }
+let projectsCache = [];
 function renderProjects() {
-  const search = document.getElementById('pSearch').value.toLowerCase();
-  const filter = document.getElementById('pStatusFilter').value;
-  const today = new Date().toISOString().slice(0, 10);
-  const list = projectsCache.filter(p =>
-    (!search || p.client_name.toLowerCase().includes(search)) &&
-    (filter === 'all' || p.status === filter));
+// no início de renderProjects():
+const term = document.getElementById('pSearch').value.toLowerCase().trim();
+const secF = document.getElementById('pSectionFilter').value;
+const stF = document.getElementById('pStatusFilter').value;
+const list = projectsCache.filter(p => {
+  if (term && !((p.client_name || '').toLowerCase().includes(term) || (p.name || '').toLowerCase().includes(term))) return false;
+  if (stF !== 'all' && p.status !== stF) return false;
+  if (secF !== 'all' && !String(p.route_ids || '').split(',').includes(secF)) return false;
+  return true;
+});
+// e use `list` no lugar de projectsCache ao montar a tabela
   const el = document.getElementById('projectsTable');
   if (!list.length) { el.innerHTML = '<p class="empty">Nenhuma folha encontrada.</p>'; return; }
   const statusInfo = p => p.status === 'completed' ? { cls: 'green', label: 'Concluída' }
@@ -166,6 +177,8 @@ function renderProjects() {
 }
 document.getElementById('pSearch').addEventListener('input', renderProjects);
 document.getElementById('pStatusFilter').addEventListener('change', renderProjects);
+// ← ADD THIS LINE:
+document.getElementById('pSectionFilter').addEventListener('change', renderProjects);
 // ===== Construtor de rota (final — grip de arraste, sem setas) =====
 let sectionsCache = [];
 let routeSteps = [];   // [[sectionId,...], ...] — seções no mesmo array trabalham em paralelo
@@ -176,6 +189,7 @@ function sectionName(id) {
   return s ? s.name : '?';
 }
 function renderRouteBuilder() {
+  const today = new Date().toISOString().slice(0, 10);
   const el = document.getElementById(routeBuilderId);
   if (!el) return;
   const used = new Set(routeSteps.flat());
@@ -341,8 +355,8 @@ async function openDetail(id) {
   dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
   dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); uploadFiles(p.id, e.dataTransfer.files); });
 }
-async function uploadFiles(files) {
-  if (!files || !files.length || !jobProjectId) return;
+async function uploadFiles(projectId, files) {
+  if (!files || !files.length) return;
   const all = Array.from(files);
   const msg = document.getElementById('docsMsg');
   let sent = 0, failed = 0;
@@ -350,12 +364,13 @@ async function uploadFiles(files) {
     const fd = new FormData();
     for (const f of all.slice(i, i + 10)) fd.append('files', f);
     try {
-      const res = await fetch('/api/projects/' + jobProjectId + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+      const res = await fetch('/api/projects/' + projectId + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
       if (res.ok) sent += Math.min(10, all.length - i); else failed++;
     } catch (e) { failed++; }
   }
-  msg.textContent = failed ? sent + ' enviado(s), ' + failed + ' lote(s) falharam.' : sent + ' arquivo(s) enviado(s).';
-  await renderDocsStrip();
+  if (msg) msg.textContent = failed ? sent + ' enviado(s), ' + failed + ' lote(s) falharam.' : sent + ' arquivo(s) enviado(s).';
+  await openDetail(projectId);
+  loadProjects();
 }
 async function deleteDoc(docId, projectId) {
   if (!confirm('Excluir este documento?')) return;
@@ -450,70 +465,118 @@ async function showNotes(id) {
     '', `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
 }
 // Trabalhadores
+let workersCache = [];
 async function loadWorkers() {
   const q = currentLocId ? '?loc=' + currentLocId : '';
   const [{ workers }, { sections }] = await Promise.all([api('/api/company/workers' + q), api('/api/company/sections' + q)]);
-  const sel = document.getElementById('wSection');
-  sel.innerHTML = sections.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  workersCache = workers;
+  const sel = document.getElementById('wSectionFilter');
+  const cur = sel.value;
+  sel.innerHTML = '<option value="all">Todas as seções</option><option value="none">Sem seção</option>' +
+    sections.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
+  sel.value = cur;
+  renderWorkers();
+}
+function renderWorkers() {
+  const term = document.getElementById('wSearch').value.toLowerCase().trim();
+  const secF = document.getElementById('wSectionFilter').value;
+  const stF = document.getElementById('wStatusFilter').value;
+  const list = workersCache.filter(w => {
+    if (term && !((w.name || '').toLowerCase().includes(term) || (w.email || '').toLowerCase().includes(term))) return false;
+    if (secF === 'none' && w.section_id) return false;
+    if (secF !== 'all' && secF !== 'none' && String(w.section_id) !== secF) return false;
+    if (stF === 'online' && !w.online) return false;
+    if (stF === 'offline' && w.online) return false;
+    return true;
+  });
   const el = document.getElementById('workersList');
-  if (!workers.length) { el.innerHTML = '<p class="empty">Nenhum trabalhador criado ainda.</p>'; return; }
-  el.innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Seção</th><th>Status</th><th>Ações</th></tr></thead><tbody>` +
-    workers.map(w => `
+  if (!list.length) { el.innerHTML = '<p class="empty">Nenhum trabalhador encontrado.</p>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Nome</th><th>Usuário</th><th>Seção</th><th>Status</th><th>Senha</th><th>Ações</th></tr></thead><tbody>` +
+    list.map(w => `
       <tr>
         <td>${esc(w.name)}</td>
         <td>${esc(w.email)}</td>
-        <td>${esc(w.section_name || '—')}</td>
-        <td><span class="badge ${w.active ? 'green' : 'gray'}">${w.active ? 'Ativo' : 'Inativo'}</span></td>
+        <td>${w.section_name ? esc(w.section_name) : '<span class="badge orange">Sem seção</span>'}</td>
+        <td><span class="badge ${w.online ? 'green' : 'gray'}">${w.online ? 'Online' : 'Offline'}</span></td>
+        <td><span class="pass-cell"><span class="pass-mask" id="pass-${w.id}" data-shown="0">••••••••</span>
+          <button class="icon-btn" title="Mostrar/ocultar" onclick="togglePass(${w.id}, this)">👁</button>
+          <button class="icon-btn" title="Copiar" onclick="copyPass(${w.id}, this)">📋</button></span></td>
         <td><div class="row-actions">
-          <button class="btn ghost small" onclick="revealPass(${w.id}, this)">👁 Ver senha</button>
           <button class="btn ghost small" onclick="editWorker(${w.id})">Editar</button>
+          <button class="icon-btn danger" title="Excluir" onclick="deleteWorker(${w.id})">🗑</button>
         </div></td>
       </tr>`).join('') + '</tbody></table>';
 }
-document.getElementById('createWorkerBtn').addEventListener('click', async () => {
-  const name = document.getElementById('wName').value.trim();
-  const email = document.getElementById('wEmail').value.trim();
-  const password = document.getElementById('wPass').value;
-  const section_id = Number(document.getElementById('wSection').value);
-  if (!name || !email || !password) return alert('Preencha nome, e-mail e senha.');
+['wSearch', 'wSectionFilter', 'wStatusFilter'].forEach(id =>
+  document.getElementById(id).addEventListener('input', renderWorkers));
+
+const passCache = {};
+async function fetchPass(id) {
+  if (!passCache[id]) {
+    const d = await api('/api/company/workers/' + id + '/reveal', { method: 'POST' });
+    passCache[id] = d.password || '';
+  }
+  return passCache[id];
+}
+async function togglePass(id) {
+  const span = document.getElementById('pass-' + id);
+  if (!span) return;
+  if (span.dataset.shown === '1') { span.textContent = '••••••••'; span.dataset.shown = '0'; return; }
+  try { span.textContent = await fetchPass(id); span.dataset.shown = '1'; }
+  catch (err) { alert(err.message); }
+}
+async function copyPass(id, btn) {
   try {
-    await api('/api/company/workers', { method: 'POST', body: JSON.stringify({ name, email, password, section_id }) });
-    document.getElementById('wName').value = '';
-    document.getElementById('wEmail').value = '';
-    document.getElementById('wPass').value = '';
+    const p = await fetchPass(id);
+    await navigator.clipboard.writeText(p);
+    btn.textContent = '✓'; setTimeout(() => btn.textContent = '📋', 1200);
+  } catch (err) { alert(err.message || 'Não foi possível copiar.'); }
+}
+
+document.getElementById('newWorkerBtn').addEventListener('click', async () => {
+  const q = currentLocId ? '?loc=' + currentLocId : '';
+  const { sections } = await api('/api/company/sections' + q);
+  if (!sections.length) return alert('Crie pelo menos uma seção antes de adicionar trabalhadores.');
+  openModal('Novo trabalhador', `
+    <label>Nome *<input type="text" id="nwName"></label>
+    <label>Usuário de acesso *<input type="text" id="nwUser" placeholder="ex.: joao.s"></label>
+    <label>Senha inicial *<input type="text" id="nwPass"></label>
+    <label>Seção *<select id="nwSection">${sections.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('')}</select></label>
+    <p class="muted" style="font-size:12px;margin-top:8px">O trabalhador entra no Portal do Trabalhador com este usuário e senha.</p>`,
+    `<button class="btn primary" onclick="createWorker()">Criar trabalhador</button>`);
+});
+async function createWorker() {
+  const name = document.getElementById('nwName').value.trim();
+  const username = document.getElementById('nwUser').value.trim();
+  const password = document.getElementById('nwPass').value;
+  const section_id = Number(document.getElementById('nwSection').value);
+  if (!name || !username || !password) return alert('Preencha nome, usuário e senha.');
+  try {
+    await api('/api/company/workers', { method: 'POST', body: JSON.stringify({ name, username, password, section_id }) });
+    document.getElementById('modal').classList.add('hidden');
     loadWorkers();
   } catch (err) { alert(err.message); }
-});
-async function revealPass(id, btn) {
-  try {
-    const data = await api('/api/company/workers/' + id + '/reveal', { method: 'POST' });
-    const span = document.createElement('span');
-    span.className = 'reveal-pass';
-    span.textContent = ' ' + data.password;
-    btn.insertAdjacentElement('afterend', span);
-    setTimeout(() => span.remove(), 15000);
-  } catch (err) { alert(err.message); }
 }
+
 async function editWorker(id) {
+  const w = workersCache.find(x => x.id === id);
   const q = currentLocId ? '?loc=' + currentLocId : '';
-  const [{ workers }, { sections }] = await Promise.all([api('/api/company/workers' + q), api('/api/company/sections' + q)]);
-  const w = workers.find(x => x.id === id);
+  const { sections } = await api('/api/company/sections' + q);
   openModal('Editar — ' + esc(w.name), `
-    <label>Seção
-      <select id="ewSection">${sections.map(s => `<option value="${s.id}" ${s.id === w.section_id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select>
-    </label>
+    <label>Nome *<input type="text" id="ewName" value="${esc(w.name)}"></label>
+    <label>Usuário de acesso *<input type="text" id="ewUser" value="${esc(w.email)}"></label>
+    <label>Seção<select id="ewSection"><option value="">Sem seção</option>${sections.map(s => `<option value="${s.id}" ${s.id === w.section_id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}</select></label>
     <label style="display:flex;align-items:center;gap:8px;margin-top:10px">
-      <input type="checkbox" id="ewActive" style="width:auto;margin:0" ${w.active ? 'checked' : ''}> Conta ativa
+      <input type="checkbox" id="ewActive" style="width:auto;margin:0" ${w.active ? 'checked' : ''}> Conta ativa (desmarque para suspender o acesso)
     </label>
-    <label>Nova senha (opcional)
-      <input type="text" id="ewPass" placeholder="Deixe vazio para manter">
-    </label>
-    <button class="btn primary" onclick="saveWorker(${w.id})">Salvar</button>
-  `);
+    <label>Nova senha (opcional)<input type="text" id="ewPass" placeholder="Deixe vazio para manter"></label>
+    <button class="btn primary" onclick="saveWorker(${w.id})">Salvar</button>`);
 }
 async function saveWorker(id) {
   const body = {
-    section_id: Number(document.getElementById('ewSection').value),
+    name: document.getElementById('ewName').value.trim(),
+    username: document.getElementById('ewUser').value.trim(),
+    section_id: Number(document.getElementById('ewSection').value) || null,
     active: document.getElementById('ewActive').checked
   };
   const pass = document.getElementById('ewPass').value;
@@ -523,6 +586,13 @@ async function saveWorker(id) {
     document.getElementById('modal').classList.add('hidden');
     loadWorkers();
   } catch (err) { alert(err.message); }
+}
+
+async function deleteWorker(id) {
+  const w = workersCache.find(x => x.id === id);
+  if (!confirm(`Excluir o trabalhador "${w.name}"? Esta ação não pode ser desfeita.`)) return;
+  try { await api('/api/company/workers/' + id, { method: 'DELETE' }); loadWorkers(); }
+  catch (err) { alert(err.message); }
 }
 // Seções
 async function loadSections() {
@@ -535,8 +605,8 @@ async function loadSections() {
         <td>${s.position}</td>
         <td><input value="${esc(s.name)}" id="secName-${s.id}" style="max-width:260px"></td>
         <td><div class="row-actions">
-          <button class="btn ghost small" onclick="renameSection(${s.id})">Renomear</button>
-          <button class="btn ghost small" onclick="revealSectionPass(${s.id}, this)">👁 Ver senha</button>
+<button class="btn ghost small" onclick="renameSection(${s.id})">Renomear</button>
+<button class="icon-btn danger" title="Excluir" onclick="deleteSection(${s.id})">🗑</button>
         </div></td>
       </tr>`).join('') + '</tbody></table>';
 }
@@ -555,15 +625,15 @@ async function renameSection(id) {
   try { await api('/api/company/sections/' + id, { method: 'PUT', body: JSON.stringify({ name }) }); loadSections(); }
   catch (err) { alert(err.message); }
 }
-async function revealSectionPass(id, btn) {
+async function deleteSection(id) {
+  let msg = 'Excluir esta seção?';
   try {
-    const data = await api('/api/company/sections/' + id + '/reveal', { method: 'POST' });
-    const span = document.createElement('span');
-    span.className = 'reveal-pass';
-    span.textContent = data.password ? ' ' + data.password : ' (sem senha — login agora é por trabalhador)';
-    btn.insertAdjacentElement('afterend', span);
-    setTimeout(() => span.remove(), 15000);
-  } catch (err) { alert(err.message); }
+    const usage = await api('/api/company/sections/' + id + '/usage');
+    if (usage.workers > 0) msg = `Você tem ${usage.workers} trabalhador(es) vinculado(s) a esta seção. Eles ficarão sem seção. Deseja excluir mesmo assim?`;
+  } catch (e) {}
+  if (!confirm(msg)) return;
+  try { await api('/api/company/sections/' + id, { method: 'DELETE' }); loadSections(); loadWorkers(); }
+  catch (err) { alert(err.message); }
 }
 
 // ===== Avatar no chip + sino + dropdown =====

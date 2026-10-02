@@ -73,6 +73,7 @@ function auth(req, res, next) {
   if (!user) return res.status(401).json({ error: 'Conta não encontrada.' });
   if (!user.active) return res.status(403).json({ error: 'Conta desativada. Fale com o gerente.' });
   req.user = user;
+  db.prepare("UPDATE users SET last_seen = datetime('now') WHERE id = ?").run(user.id);
   next();
 }
 
@@ -245,6 +246,36 @@ app.put('/api/company/sections/:id', auth, managerOnly, (req, res) => {
   res.json({ ok: true });
 });
 
+app.get('/api/company/sections/:id/usage', auth, managerOnly, (req, res) => {
+  const s = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!s) return res.status(404).json({ error: 'Seção não encontrada.' });
+  const workers = db.prepare('SELECT COUNT(*) c FROM users WHERE section_id = ?').get(s.id).c;
+  const activeRoutes = db.prepare(`
+    SELECT COUNT(DISTINCT r.project_id) c FROM project_route r
+    JOIN projects p ON p.id = r.project_id
+    WHERE r.section_id = ? AND p.status != 'completed'`).get(s.id).c;
+  res.json({ workers, activeRoutes });
+});
+
+app.delete('/api/company/sections/:id', auth, managerOnly, (req, res) => {
+  const s = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!s) return res.status(404).json({ error: 'Seção não encontrada.' });
+  const workers = db.prepare('SELECT COUNT(*) c FROM users WHERE section_id = ?').get(s.id).c;
+  const activeRoutes = db.prepare(`
+    SELECT COUNT(DISTINCT r.project_id) c FROM project_route r
+    JOIN projects p ON p.id = r.project_id
+    WHERE r.section_id = ? AND p.status != 'completed'`).get(s.id).c;
+  if (activeRoutes > 0) {
+    return res.status(400).json({ error: `Esta seção é etapa de ${activeRoutes} folha(s) em andamento. Conclua as folhas ou edite as rotas antes de excluir.` });
+  }
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE users SET section_id = NULL WHERE section_id = ?').run(s.id);
+    db.prepare('DELETE FROM sections WHERE id = ?').run(s.id);
+  });
+  tx();
+  res.json({ ok: true, detached: workers });
+});
+
 app.post('/api/company/sections/:id/reveal', auth, managerOnly, (req, res) => {
   const s = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!s) return res.status(404).json({ error: 'Seção não encontrada.' });
@@ -255,37 +286,55 @@ app.post('/api/company/sections/:id/reveal', auth, managerOnly, (req, res) => {
 app.get('/api/company/workers', auth, managerOnly, (req, res) => {
   const loc = Number(req.query.loc) || null;
   const workers = db.prepare(`
-    SELECT u.id, u.name, u.email, u.section_id, u.active, u.created_at, s.name AS section_name
+    SELECT u.id, u.name, u.email, u.section_id, u.active, u.created_at, u.last_seen, s.name AS section_name,
+      CASE WHEN u.last_seen IS NOT NULL AND u.last_seen >= datetime('now', '-2 minutes') THEN 1 ELSE 0 END AS online
     FROM users u LEFT JOIN sections s ON s.id = u.section_id
     WHERE u.company_id = ? AND u.role = 'worker' ${loc ? 'AND s.location_id = ?' : ''}
-    ORDER BY u.name`).all(...(loc ? [req.user.company_id, loc] : [req.user.company_id]));
+    ORDER BY CASE WHEN s.id IS NULL THEN 0 ELSE 1 END, u.name`).all(...(loc ? [req.user.company_id, loc] : [req.user.company_id]));
   res.json({ workers });
 });
 
 app.post('/api/company/workers', auth, managerOnly, (req, res) => {
-  const { name, email, password, section_id } = req.body || {};
-  if (!name || !email || !password) return res.status(400).json({ error: 'Preencha nome, e-mail e senha.' });
-  const emailNorm = String(email).toLowerCase().trim();
-  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(emailNorm);
-  if (exists) return res.status(400).json({ error: 'Já existe uma conta com este e-mail.' });
-  const sec = db.prepare('SELECT id FROM sections WHERE id = ? AND company_id = ?').get(section_id, req.user.company_id);
+  const { name, username, password, section_id } = req.body || {};
+  if (!name || !username || !password) return res.status(400).json({ error: 'Preencha nome, usuário e senha.' });
+  const userNorm = String(username).toLowerCase().trim();
+  const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(userNorm);
+  if (exists) return res.status(400).json({ error: 'Já existe uma conta com este usuário.' });
+  const sec = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(Number(section_id), req.user.company_id);
   if (!sec) return res.status(400).json({ error: 'Seção inválida.' });
-  const info = db.prepare('INSERT INTO users (company_id, name, email, role, password_enc, section_id) VALUES (?,?,?,?,?,?)')
-    .run(req.user.company_id, String(name).trim(), emailNorm, 'worker', encrypt(password), sec.id);
+  const info = db.prepare("INSERT INTO users (company_id, name, email, role, password_enc, section_id) VALUES (?,?,?,?,?,?)")
+    .run(req.user.company_id, String(name).trim(), userNorm, 'worker', encrypt(password), sec.id);
   res.json({ ok: true, id: info.lastInsertRowid });
 });
 
 app.put('/api/company/workers/:id', auth, managerOnly, (req, res) => {
   const w = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'worker'").get(req.params.id, req.user.company_id);
   if (!w) return res.status(404).json({ error: 'Trabalhador não encontrado.' });
-  const { section_id, active, password, name } = req.body || {};
-  if (name && String(name).trim()) db.prepare('UPDATE users SET name = ? WHERE id = ?').run(String(name).trim(), w.id);
-  if (section_id) {
-    const sec = db.prepare('SELECT id FROM sections WHERE id = ? AND company_id = ?').get(section_id, req.user.company_id);
-    if (sec) db.prepare('UPDATE users SET section_id = ? WHERE id = ?').run(sec.id, w.id);
+  const { name, username, section_id, active, password } = req.body || {};
+  const newName = name !== undefined ? String(name).trim() : w.name;
+  if (!newName) return res.status(400).json({ error: 'O nome é obrigatório.' });
+  let newEmail = w.email;
+  if (username !== undefined) {
+    newEmail = String(username).toLowerCase().trim();
+    if (!newEmail) return res.status(400).json({ error: 'O usuário é obrigatório.' });
+    const dup = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(newEmail, w.id);
+    if (dup) return res.status(400).json({ error: 'Já existe uma conta com este usuário.' });
   }
-  if (active !== undefined) db.prepare('UPDATE users SET active = ? WHERE id = ?').run(active ? 1 : 0, w.id);
+  const newSection = section_id !== undefined ? (Number(section_id) || null) : w.section_id;
+  const newActive = active !== undefined ? (active ? 1 : 0) : w.active;
+  db.prepare('UPDATE users SET name = ?, email = ?, section_id = ?, active = ? WHERE id = ?')
+    .run(newName, newEmail, newSection, newActive, w.id);
   if (password) db.prepare('UPDATE users SET password_enc = ? WHERE id = ?').run(encrypt(password), w.id);
+  res.json({ ok: true });
+});
+
+app.delete('/api/company/workers/:id', auth, managerOnly, (req, res) => {
+  const w = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'worker'").get(req.params.id, req.user.company_id);
+  if (!w) return res.status(404).json({ error: 'Trabalhador não encontrado.' });
+  db.prepare('DELETE FROM sessions WHERE user_id = ?').run(w.id);
+  db.prepare('DELETE FROM project_collaborators WHERE user_id = ?').run(w.id);
+  db.prepare('UPDATE project_route SET assigned_to = NULL WHERE assigned_to = ?').run(w.id);
+  db.prepare('DELETE FROM users WHERE id = ?').run(w.id);
   res.json({ ok: true });
 });
 
@@ -301,6 +350,7 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
   const projects = db.prepare(`
     SELECT p.*, s.name AS section_name, u.name AS worker_name,
       (SELECT COUNT(*) FROM project_documents d WHERE d.project_id = p.id) AS doc_count
+      (SELECT GROUP_CONCAT(r.section_id) FROM project_route r WHERE r.project_id = p.id) AS route_ids
     FROM projects p
     LEFT JOIN sections s ON s.id = p.current_section_id
     LEFT JOIN users u ON u.id = p.assigned_to
