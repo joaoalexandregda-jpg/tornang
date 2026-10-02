@@ -56,6 +56,7 @@
       <form id="locForm">
         <label>Nome *<input type="text" id="lName" required></label>
         <label>Endereço<input type="text" id="lAddress"></label>
+        <label>NIF <span class="muted">(opcional)</span><input type="text" id="lNif"></label>
         <label>Imagem <span class="muted">(opcional — vira o ícone no menu)</span><input type="file" id="lImage" accept="image/png,image/jpeg,image/webp"></label>
         <div class="modal-actions">
           <button type="button" class="btn ghost" id="locReset" hidden>Cancelar edição</button>
@@ -143,6 +144,7 @@ function renderList() {
     editingId = l.id; pendingImage = null;
     document.getElementById('lName').value = l.name || '';
     document.getElementById('lAddress').value = l.address || '';
+    document.getElementById('lNif').value = l.nif || '';
     document.getElementById('formTitle').textContent = 'Editar local';
     document.getElementById('locSubmit').textContent = 'Salvar alterações';
     document.getElementById('locReset').hidden = false;
@@ -164,6 +166,7 @@ function renderList() {
 function resetForm() {
   editingId = null; pendingImage = null;
   document.getElementById('locForm').reset();
+  document.getElementById('lNif').value = '';
   document.getElementById('formTitle').textContent = 'Novo local';
   document.getElementById('locSubmit').textContent = 'Criar local';
   document.getElementById('locReset').hidden = true;
@@ -186,10 +189,11 @@ document.getElementById('locForm').addEventListener('submit', async (e) => {
   const msg = document.getElementById('locMsg');
   try {
     let loc;
-    const body = JSON.stringify({
-      name: document.getElementById('lName').value.trim(),
-      address: document.getElementById('lAddress').value.trim()
-    });
+const body = JSON.stringify({
+  name: document.getElementById('lName').value.trim(),
+  address: document.getElementById('lAddress').value.trim(),
+  nif: document.getElementById('lNif').value.trim()
+});
     if (editingId) {
       ({ location: loc } = await api('/api/locations/' + editingId, { method: 'PUT', body }));
     } else {

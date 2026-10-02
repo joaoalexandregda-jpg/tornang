@@ -788,8 +788,8 @@ app.post('/api/locations', auth, (req, res) => {
   if (me.role !== 'manager') return res.status(403).json({ error: 'Apenas o gestor pode criar locais.' });
   const name = String(req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'O nome do local é obrigatório.' });
-  const info = db.prepare('INSERT INTO locations (company_id, name, address) VALUES (?, ?, ?)')
-    .run(me.company_id, name, String(req.body.address || '').trim() || null);
+  const info = db.prepare('INSERT INTO locations (company_id, name, address, nif) VALUES (?, ?, ?, ?)')
+  .run(me.company_id, name, String(req.body.address || '').trim() || null, String(req.body.nif || '').trim() || null);
   res.json({ location: db.prepare('SELECT * FROM locations WHERE id = ?').get(info.lastInsertRowid) });
 });
 
@@ -800,8 +800,8 @@ app.put('/api/locations/:id', auth, (req, res) => {
   if (!loc) return res.status(404).json({ error: 'Local não encontrado.' });
   const name = String(req.body.name || '').trim();
   if (!name) return res.status(400).json({ error: 'O nome do local é obrigatório.' });
-  db.prepare('UPDATE locations SET name = ?, address = ? WHERE id = ?')
-    .run(name, String(req.body.address || '').trim() || null, loc.id);
+  db.prepare('UPDATE locations SET name = ?, address = ?, nif = ? WHERE id = ?')
+  .run(name, String(req.body.address || '').trim() || null, String(req.body.nif || '').trim() || null, loc.id);
   res.json({ location: db.prepare('SELECT * FROM locations WHERE id = ?').get(loc.id) });
 });
 
