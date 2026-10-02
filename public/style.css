@@ -730,3 +730,7 @@ body > .tabs ~ .panel {
 .pass-cell { display: inline-flex; align-items: center; gap: 4px; }
 .pass-mask { font-family: monospace; letter-spacing: 2px; color: var(--flex-muted); min-width: 70px; display: inline-block; }
 .badge.orange { background: #FFEDD5; color: #C2410C; }
+
+/* ===== v4.6 — Popup de detalhe maior ===== */
+.modal { max-width: 860px !important; width: 92vw; }
+.modal-body { max-height: 70vh; overflow-y: auto; }

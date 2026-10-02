@@ -169,10 +169,16 @@ async function accept(id) {
 }
 
 async function finish(id) {
-  if (!confirm('Concluir esta folha e enviar para a próxima seção?')) return;
+  const job = jobCache[id];
+  const isLast = job && job.max_step != null && Number(job.step) === Number(job.max_step);
+  if (!confirm('Concluir esta folha?')) return;
+  let destination = null;
+  if (isLast) {
+    destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronta para entrega ao cliente') ? 'warehouse' : 'client';
+  }
   try {
-    const data = await api('/api/projects/' + id + '/finish', { method: 'POST' });
-    if (data.completed) alert('🎉 Folha concluída!');
+    const data = await api('/api/projects/' + id + '/finish', { method: 'POST', body: JSON.stringify({ destination }) });
+    if (data.completed) alert(destination === 'client' ? '🚚 Folha pronta para entrega ao cliente!' : '📦 Folha enviada ao armazém!');
     else if (data.waiting) alert('⏳ Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
     else alert('✅ Folha enviada para: ' + data.next);
     loadQueue(); loadHistory();

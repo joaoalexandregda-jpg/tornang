@@ -350,7 +350,8 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
   const projects = db.prepare(`
     SELECT p.*, s.name AS section_name, u.name AS worker_name,
       (SELECT COUNT(*) FROM project_documents d WHERE d.project_id = p.id) AS doc_count,
-      (SELECT GROUP_CONCAT(r.section_id) FROM project_route r WHERE r.project_id = p.id) AS route_ids
+      (SELECT GROUP_CONCAT(r.section_id) FROM project_route r WHERE r.project_id = p.id) AS route_ids,
+      (SELECT COUNT(*) FROM project_route r WHERE r.project_id = p.id AND r.status = 'active' AND r.assigned_to IS NULL) AS awaiting
     FROM projects p
     LEFT JOIN sections s ON s.id = p.current_section_id
     LEFT JOIN users u ON u.id = p.assigned_to
@@ -408,7 +409,8 @@ app.get('/api/worker/queue', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
   const routed = db.prepare(`
     SELECT p.*, s.name AS section_name, r.id AS route_id, r.step, r.assigned_to AS route_assigned,
-      (SELECT GROUP_CONCAT(s2.name, ' + ') FROM project_route r2 JOIN sections s2 ON s2.id = r2.section_id
+      (SELECT GROUP_CONCAT(s2.name, ' + ') FROM project_route r2 JOIN sections s2 ON s2.id = r2.section_id,
+      (SELECT MAX(step) FROM project_route WHERE project_id = p.id) AS max_step
        WHERE r2.project_id = p.id AND r2.step = r.step AND r2.section_id != r.section_id) AS parallel_with
     FROM project_route r
     JOIN projects p ON p.id = r.project_id
@@ -452,6 +454,7 @@ app.post('/api/projects/:id/accept', auth, (req, res) => {
 
 app.post('/api/projects/:id/finish', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
+    const destination = (req.body && req.body.destination === 'client') ? 'delivered' : 'at_warehouse';
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
   const hasRoute = db.prepare('SELECT 1 FROM project_route WHERE project_id = ?').get(p.id);
@@ -468,7 +471,7 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
       if (pendingSameStep > 0) return; // aguardando seções em paralelo concluírem
       const nextStep = db.prepare("SELECT MIN(step) AS s FROM project_route WHERE project_id = ? AND status = 'pending'").get(p.id).s;
       if (nextStep == null) {
-        db.prepare("UPDATE projects SET status = 'completed', assigned_to = NULL, current_section_id = NULL, updated_at = datetime('now') WHERE id = ?").run(p.id);
+      db.prepare("UPDATE projects SET status = ?, assigned_to = NULL, current_section_id = NULL, updated_at = datetime('now') WHERE id = ?").run(destination, p.id);
       } else {
         db.prepare("UPDATE project_route SET status = 'active' WHERE project_id = ? AND step = ?").run(p.id, nextStep);
         const first = db.prepare('SELECT section_id FROM project_route WHERE project_id = ? AND step = ? ORDER BY id LIMIT 1').get(p.id, nextStep);
@@ -497,12 +500,23 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, p.current_section_id, req.user.id, 'finished');
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, next.id, req.user.id, 'passed');
     } else {
-      db.prepare("UPDATE projects SET status = 'completed', assigned_to = NULL, updated_at = datetime('now') WHERE id = ?").run(p.id);
+    db.prepare("UPDATE projects SET status = ?, assigned_to = NULL, updated_at = datetime('now') WHERE id = ?").run(destination, p.id);
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, p.current_section_id, req.user.id, 'finished');
     }
   });
   tx();
   res.json({ ok: true, next: next ? next.name : null, completed: !next });
+});
+
+// ---------- v4.6: destino final da folha (gerente corrige) ----------
+app.put('/api/projects/:id/destination', auth, managerOnly, (req, res) => {
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+  const d = String((req.body || {}).destination || '');
+  if (!['at_warehouse', 'delivered'].includes(d)) return res.status(400).json({ error: 'Destino inválido.' });
+  if (!['completed', 'at_warehouse', 'delivered'].includes(p.status)) return res.status(400).json({ error: 'A folha ainda está em produção.' });
+  db.prepare("UPDATE projects SET status = ?, updated_at = datetime('now') WHERE id = ?").run(d, p.id);
+  res.json({ ok: true });
 });
 
 app.get('/api/worker/history', auth, (req, res) => {
@@ -651,6 +665,32 @@ app.post('/api/projects/:id/release', auth, managerOnly, (req, res) => {
     db.prepare("UPDATE project_route SET status = 'active' WHERE project_id = ? AND step = (SELECT MIN(step) FROM project_route WHERE project_id = ?)").run(p.id, p.id);
     db.prepare("UPDATE projects SET status = 'in_progress', current_section_id = ? WHERE id = ?").run(first ? first.section_id : null, p.id);
     db.prepare('INSERT INTO project_history (project_id, section_id, action) VALUES (?,?,?)').run(p.id, first ? first.section_id : null, 'released');
+  });
+  tx();
+  res.json({ ok: true });
+});
+
+// ---------- v4.6.1: Excluir folha (apenas antes de entrar em produção) ----------
+app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+  const started = db.prepare(`
+    SELECT COUNT(*) c FROM project_route
+    WHERE project_id = ? AND (status = 'done' OR assigned_to IS NOT NULL)`).get(p.id).c;
+  if (started > 0) {
+    return res.status(400).json({ error: 'Esta folha já está em produção — algum trabalhador já assumiu ou concluiu uma etapa. Ela não pode mais ser excluída.' });
+  }
+  const tx = db.transaction(() => {
+    const docs = db.prepare('SELECT stored_name FROM project_documents WHERE project_id = ?').all(p.id);
+    for (const d of docs) { try { fs.unlinkSync(path.join(uploadDir, d.stored_name)); } catch (e) {} }
+    db.prepare('DELETE FROM project_documents WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_route WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_history WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_notes WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_collaborators WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM join_requests WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM notifications WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
   });
   tx();
   res.json({ ok: true });
