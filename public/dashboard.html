@@ -43,6 +43,7 @@
         <div class="dropdown" id="userMenu" hidden>
           <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
           <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
+          <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
           <hr>
           <button class="dropdown-item danger" id="menuLogout">Sair</button>
         </div>
@@ -59,7 +60,10 @@
 
   <h3 class="dash-section-title">Locais</h3>
   <div class="dash-grid" id="dashGrid"></div>
-
+  <div class="recent-card">
+    <h3 class="dash-section-title">📅 Hoje</h3>
+    <ul class="recent-list" id="todayList"></ul>
+  </div>
   <div class="recent-card">
     <h3 class="dash-section-title">Atividade recente</h3>
     <ul class="recent-list" id="recentList"></ul>
@@ -160,6 +164,10 @@ grid.querySelectorAll('.loc-card.clickable').forEach(c => c.addEventListener('cl
   rl.innerHTML = (dash.recent || []).map(r => `
     <li><b>${esc(r.user_name || 'Sistema')}</b> <span>${esc(r.action)}</span> <span class="muted">— ${esc(r.project_name || r.client_name || '')}</span> <span class="when">${esc((r.created_at || '').slice(11, 16))}</span></li>
   `).join('') || '<li class="muted">Nenhuma atividade ainda. Ela aparece aqui assim que a equipe começar a trabalhar.</li>';
+    const tl = document.getElementById('todayList');
+  tl.innerHTML = (dash.today || []).map(r => `
+    <li><b>${esc(r.user_name || 'Sistema')}</b> <span>${esc(r.action)}</span> <span class="muted">— ${esc(r.project_name || r.client_name || '')}</span> <span class="when">${esc((r.created_at || '').slice(11, 16))}</span></li>
+  `).join('') || '<li class="muted">Nenhuma atividade hoje ainda.</li>';
 }
 
 (async () => {

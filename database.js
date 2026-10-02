@@ -115,6 +115,9 @@ addColumn('companies', 'address', 'address TEXT');
 addColumn('companies', 'phone', 'phone TEXT');
 addColumn('users', 'is_owner', 'is_owner INTEGER DEFAULT 0');
 
+// Migração v4.8.0: poder de gerenciar colaboradores
+addColumn('users', 'can_manage_collaborators', 'can_manage_collaborators INTEGER DEFAULT 0');
+
 // Marca como "dono" o primeiro gerente cujo e-mail é o e-mail da empresa
 db.prepare(`
   UPDATE users SET is_owner = 1
@@ -182,6 +185,20 @@ addColumn('projects', 'location_id', 'location_id INTEGER');
 addColumn('locations', 'nif', 'nif TEXT');
 // Migração v4.5.0: presença online (status automático)
 addColumn('users', 'last_seen', 'last_seen TEXT');
+
+// Migração v4.7.0: colaboradores com acesso a múltiplos locais
+db.exec(`
+CREATE TABLE IF NOT EXISTS user_locations (
+  user_id INTEGER NOT NULL,
+  location_id INTEGER NOT NULL,
+  PRIMARY KEY (user_id, location_id)
+);
+`);
+// Backfill: quem já tem location_id ganha o vínculo correspondente
+db.prepare(`
+  INSERT OR IGNORE INTO user_locations (user_id, location_id)
+  SELECT id, location_id FROM users WHERE location_id IS NOT NULL
+`).run();
 
 // Backfill: cria a local SEDE para cada empresa que ainda não tem nenhuma
 db.prepare(`
@@ -265,5 +282,19 @@ CREATE TABLE IF NOT EXISTS join_requests (
   created_at TEXT DEFAULT (datetime('now'))
 );
 `);
+
+// Migração v4.7.0: colaboradores com acesso a múltiplos locais
+db.exec(`
+CREATE TABLE IF NOT EXISTS user_locations (
+  user_id INTEGER NOT NULL,
+  location_id INTEGER NOT NULL,
+  PRIMARY KEY (user_id, location_id)
+);
+`);
+// Backfill: quem já tem location_id ganha o vínculo correspondente
+db.prepare(`
+  INSERT OR IGNORE INTO user_locations (user_id, location_id)
+  SELECT id, location_id FROM users WHERE location_id IS NOT NULL
+`).run();
 
 module.exports = db;

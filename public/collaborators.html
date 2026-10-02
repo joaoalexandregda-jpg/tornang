@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tornang — Colaboradores</title>
+<link rel="stylesheet" href="/style.css">
+</head>
+<body>
+<header class="topbar">
+  <h1>Tornang — <span id="companyName"></span></h1>
+  <div class="topbar-right">
+    <div class="menu-wrap">
+      <button class="chip" id="chipBtn">
+        <span class="avatar" id="chipAvatar"></span>
+        <span class="chip-name" id="chipName"></span>
+      </button>
+      <div class="dropdown" id="userMenu" hidden>
+        <button class="dropdown-item" data-go="dashboard.html">📊 Dashboard</button>
+        <button class="dropdown-item" data-go="locations.html">📍 Locais</button>
+        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
+        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
+        <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
+        <hr>
+        <button class="dropdown-item danger" id="menuLogout">Sair</button>
+      </div>
+    </div>
+  </div>
+</header>
+<main>
+  <div class="panel" style="max-width:900px">
+    <div class="toolbar">
+      <h3 style="margin:0">👥 Colaboradores</h3>
+      <button class="btn primary" id="newCollabBtn" style="width:auto" hidden>+ Novo colaborador</button>
+    </div>
+    <p class="muted" id="pageNote" style="font-size:13px;margin-top:6px"></p>
+    <div id="collabList"></div>
+  </div>
+</main>
+<div id="modal" class="modal-backdrop hidden">
+  <div class="modal">
+    <div class="modal-head">
+      <h2 class="modal-title" id="modalTitle"></h2>
+      <button class="modal-close" id="modalClose">×</button>
+    </div>
+    <div class="modal-body" id="modalBody"></div>
+    <div class="modal-actions" id="modalFooter"></div>
+  </div>
+</div>
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'index.html';
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+if (user.role !== 'manager') location.href = 'worker.html';
+const isOwner = !!user.is_owner;
+const canManage = isOwner || !!user.can_manage_collaborators;
+const company = JSON.parse(localStorage.getItem('company') || '{}');
+document.getElementById('companyName').textContent = company.name || '';
+document.getElementById('pageNote').textContent = isOwner
+  ? 'Colaboradores são gestores adicionais da empresa. Têm acesso total às funções de gerente nos locais selecionados — mas não podem alterar "Minha empresa" nem gerenciar outros colaboradores.'
+  : canManage
+    ? 'Você pode gerenciar colaboradores — permissão concedida pelo dono da conta.'
+    : 'Você está visualizando a lista de colaboradores. Somente o dono da conta pode adicionar, editar ou remover colaboradores.';
+if (canManage) document.getElementById('newCollabBtn').hidden = false;
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+function openModal(title, bodyHtml, footerHtml) {
+  document.getElementById('modalTitle').textContent = title;
+  document.getElementById('modalBody').innerHTML = bodyHtml;
+  document.getElementById('modalFooter').innerHTML = footerHtml;
+  document.getElementById('modal').classList.remove('hidden');
+}
+document.getElementById('modalClose').addEventListener('click', () => document.getElementById('modal').classList.add('hidden'));
+
+// Chip + dropdown
+const chipBtn = document.getElementById('chipBtn'), userMenu = document.getElementById('userMenu');
+chipBtn.addEventListener('click', () => userMenu.hidden = !userMenu.hidden);
+document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) userMenu.hidden = true; });
+userMenu.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
+document.getElementById('menuLogout').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear(); location.href = 'index.html';
+});
+
+let collabs = [], locations = [];
+async function load() {
+  const [{ collaborators }, { locations: locs }] = await Promise.all([api('/api/company/collaborators'), api('/api/locations')]);
+  collabs = collaborators; locations = locs;
+  render();
+}
+function render() {
+  const el = document.getElementById('collabList');
+  if (!collabs.length) { el.innerHTML = '<p class="empty">Nenhum colaborador ainda.</p>'; return; }
+  el.innerHTML = `<table><thead><tr><th>Nome</th><th>E-mail</th><th>Locais</th><th>Status</th>${canManage ? '<th>Ações</th>' : ''}</tr></thead><tbody>` +
+    collabs.map(c => `
+      <tr>
+        <td><b>${esc(c.name)}</b>${c.is_owner ? ' <span class="badge blue">Dono</span>' : ''}</td>
+        <td>${esc(c.email)}</td>
+        <td>${c.is_owner ? '<span class="badge green">Todos os locais</span>'
+          : (c.location_ids || []).map(id => { const l = locations.find(x => x.id === id); return l ? `<span class="badge gray">${esc(l.name)}</span>` : ''; }).join(' ') || '<span class="badge orange">Nenhum</span>'}</td>
+        <td><span class="badge ${c.active ? 'green' : 'gray'}">${c.active ? 'Ativo' : 'Inativo'}</span></td>
+        ${canManage ? `<td><div class="row-actions">
+          ${c.is_owner ? '' : `<button class="btn ghost small" onclick="editCollab(${c.id})">Editar</button>
+          <button class="btn ghost small" onclick="resetCollab(${c.id})">Resetar senha</button>
+          <button class="icon-btn danger" title="Excluir" onclick="deleteCollab(${c.id})">🗑</button>`}
+        </div></td>` : ''}
+      </tr>`).join('') + '</tbody></table>';
+}
+function locChecks(selected) {
+  return locations.map(l => `<label style="display:flex;align-items:center;gap:8px;margin:4px 0"><input type="checkbox" class="clLoc" value="${l.id}" style="width:auto;margin:0" ${selected.includes(l.id) ? 'checked' : ''}> ${esc(l.name)}</label>`).join('');
+}
+function getCheckedLocs() { return [...document.querySelectorAll('.clLoc:checked')].map(c => Number(c.value)); }
+
+document.getElementById('newCollabBtn').addEventListener('click', () => {
+  openModal('Novo colaborador', `
+    <label>Nome *<input type="text" id="ncName"></label>
+    <label>E-mail *<input type="text" id="ncEmail"></label>
+    <p class="muted" style="font-size:12px">Uma senha inicial será gerada e exibida uma única vez após a criação.</p>
+    <h4 style="margin:12px 0 4px">Locais com acesso *</h4>
+    ${locChecks([])}`,
+    `<button class="btn primary" onclick="createCollab()">Criar colaborador</button>`);
+});
+async function createCollab() {
+  const name = document.getElementById('ncName').value.trim();
+  const email = document.getElementById('ncEmail').value.trim();
+  const location_ids = getCheckedLocs();
+  if (!name || !email) return alert('Preencha nome e e-mail.');
+  if (!location_ids.length) return alert('Marque pelo menos um local.');
+  try {
+    const d = await api('/api/company/collaborators', { method: 'POST', body: JSON.stringify({ name, email, location_ids }) });
+    document.getElementById('modal').classList.add('hidden');
+    if (d.password) alert('Colaborador criado!\n\nSenha inicial: ' + d.password + '\n\nGuarde — não será exibida novamente.');
+    load();
+  } catch (err) { alert(err.message); }
+}
+async function editCollab(id) {
+  const c = collabs.find(x => x.id === id);
+  openModal('Editar — ' + esc(c.name), `
+    <label>Nome *<input type="text" id="ecName" value="${esc(c.name)}"></label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" id="ecActive" style="width:auto;margin:0" ${c.active ? 'checked' : ''}> Conta ativa</label>
+    <label style="display:flex;align-items:center;gap:8px;margin-top:10px"><input type="checkbox" id="ecManage" style="width:auto;margin:0" ${c.can_manage_collaborators ? 'checked' : ''}> Pode gerenciar colaboradores</label>
+    <h4 style="margin:12px 0 4px">Locais com acesso *</h4>
+    ${locChecks(c.location_ids || [])}`,
+    `<button class="btn primary" onclick="saveCollab(${c.id})">Salvar</button>`);
+}
+async function saveCollab(id) {
+  const body = { name: document.getElementById('ecName').value.trim(), active: document.getElementById('ecActive').checked, location_ids: getCheckedLocs(), can_manage_collaborators: document.getElementById('ecManage').checked };
+  if (!body.name) return alert('O nome é obrigatório.');
+  if (!body.location_ids.length) return alert('Marque pelo menos um local.');
+  try { await api('/api/company/collaborators/' + id, { method: 'PUT', body: JSON.stringify(body) }); document.getElementById('modal').classList.add('hidden'); load(); }
+  catch (err) { alert(err.message); }
+}
+async function resetCollab(id) {
+  const c = collabs.find(x => x.id === id);
+  if (!confirm(`Gerar uma nova senha para "${c.name}"? A senha atual deixará de funcionar.`)) return;
+  try { const d = await api('/api/company/collaborators/' + id + '/reset', { method: 'POST' }); alert('Nova senha: ' + d.password + '\n\nGuarde — não será exibida novamente.'); }
+  catch (err) { alert(err.message); }
+}
+async function deleteCollab(id) {
+  const c = collabs.find(x => x.id === id);
+  if (!confirm(`Excluir o colaborador "${c.name}"? Esta ação não pode ser desfeita.`)) return;
+  try { await api('/api/company/collaborators/' + id, { method: 'DELETE' }); load(); }
+  catch (err) { alert(err.message); }
+}
+load().catch(err => {
+  document.getElementById('collabList').innerHTML = `<p class="empty">${esc(err.message)}</p>`;
+  document.getElementById('newCollabBtn').hidden = true;
+});
+</script>
+</body>
+</html>

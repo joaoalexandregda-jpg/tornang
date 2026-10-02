@@ -8,7 +8,6 @@ const multer = require('multer');
 const db = require('./database');
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
-
 async function sendEmail(to, subject, text) {
   if (process.env.BREVO_API_KEY) {
     try {
@@ -33,15 +32,12 @@ async function sendEmail(to, subject, text) {
     }
   }
 }
-
 const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
 // ---------- Criptografia reversível (senhas de trabalhadores e seções) ----------
 const APP_SECRET = process.env.APP_SECRET || 'tornang-secret-troque-em-producao';
-
 function encrypt(text) {
   const key = crypto.createHash('sha256').update(APP_SECRET).digest();
   const iv = crypto.randomBytes(16);
@@ -50,7 +46,6 @@ function encrypt(text) {
   out += cipher.final('hex');
   return iv.toString('hex') + ':' + out;
 }
-
 function decrypt(text) {
   try {
     if (!text || !text.includes(':')) return '';
@@ -62,7 +57,6 @@ function decrypt(text) {
     return out;
   } catch (e) { return ''; }
 }
-
 // ---------- Autenticação ----------
 function auth(req, res, next) {
     const header = req.headers.authorization || '';
@@ -76,16 +70,26 @@ function auth(req, res, next) {
   db.prepare("UPDATE users SET last_seen = datetime('now') WHERE id = ?").run(user.id);
   next();
 }
-
 function managerOnly(req, res, next) {
   if (req.user.role !== 'manager') return res.status(403).json({ error: 'Acesso restrito ao gerente.' });
   next();
 }
-
-function publicUser(u) {
-  return { id: u.id, name: u.name, email: u.email, role: u.role, section_id: u.section_id, active: u.active, is_owner: !!u.is_owner, phone: u.phone || '', avatar: u.avatar || null };
+function ownerOnly(req, res, next) {
+  if (!req.user.is_owner) return res.status(403).json({ error: 'Apenas o dono da conta pode fazer isso.' });
+  next();
 }
-
+function manageCollabOnly(req, res, next) {
+  if (!req.user.is_owner && !req.user.can_manage_collaborators) return res.status(403).json({ error: 'Apenas o dono ou um colaborador autorizado pode gerenciar colaboradores.' });
+  next();
+}
+// null = acesso a todos os locais (dono); array = apenas os locais vinculados
+function allowedLocationIds(user) {
+  if (user.is_owner) return null;
+  return db.prepare('SELECT location_id FROM user_locations WHERE user_id = ?').all(user.id).map(r => r.location_id);
+}
+function publicUser(u) {
+  return { id: u.id, name: u.name, email: u.email, role: u.role, section_id: u.section_id, active: u.active, is_owner: !!u.is_owner, can_manage_collaborators: !!u.can_manage_collaborators, phone: u.phone || '', avatar: u.avatar || null };
+}
 // ---------- Cadastro: etapa 1 (credenciais + envio do código) ----------
 app.post('/api/signup/start', (req, res) => {
   const { email, password, confirm } = req.body || {};
@@ -105,7 +109,6 @@ app.post('/api/signup/start', (req, res) => {
   sendEmail(emailNorm, 'Flex — Código de verificação', `Seu código de verificação é: ${code}\n\nVálido por 10 minutos.`);
   res.json({ ok: true, message: 'Código enviado para ' + emailNorm });
 });
-
 // ---------- Cadastro: etapa 2 (verificação do código de 6 dígitos) ----------
 app.post('/api/signup/verify', (req, res) => {
   const { email, code } = req.body || {};
@@ -123,7 +126,6 @@ app.post('/api/signup/verify', (req, res) => {
   db.prepare('UPDATE email_verifications SET verified = 1 WHERE id = ?').run(v.id);
   res.json({ ok: true });
 });
-
 // ---------- Cadastro: etapa 3 (perfil — nome da empresa) ----------
 app.post('/api/signup/complete', (req, res) => {
   const { email, company_name } = req.body || {};
@@ -148,7 +150,6 @@ app.post('/api/signup/complete', (req, res) => {
   const company = db.prepare('SELECT * FROM companies WHERE id = ?').get(user.company_id);
   res.json({ token, user: publicUser(user), company, sections: [] });
 });
-
 // ---------- Login (com portal: worker ou company) ----------
 app.post('/api/login', (req, res) => {
   const { email, password, portal } = req.body || {};
@@ -175,7 +176,6 @@ app.post('/api/login', (req, res) => {
   const sections = db.prepare('SELECT * FROM sections WHERE company_id = ? ORDER BY position').all(user.company_id);
   res.json({ token, user: publicUser(user), company, sections });
 });
-
 // ---------- Recuperação de senha do gerente (via e-mail) ----------
 app.post('/api/forgot-password', (req, res) => {
   const { email } = req.body || {};
@@ -193,7 +193,6 @@ app.post('/api/forgot-password', (req, res) => {
   }
   res.json({ ok: true, message: 'Se o e-mail existir, você receberá um link de redefinição (válido por 1 hora).' });
 });
-
 app.post('/api/reset-password', (req, res) => {
   const { token, password } = req.body || {};
   if (!token || !password) return res.status(400).json({ error: 'Token e nova senha são obrigatórios.' });
@@ -206,38 +205,39 @@ app.post('/api/reset-password', (req, res) => {
   db.prepare('UPDATE password_resets SET used = 1 WHERE token = ?').run(token);
   res.json({ ok: true, message: 'Senha redefinida. Entre com a nova senha.' });
 });
-
 // ---------- Empresa ----------
 app.get('/api/company', auth, (req, res) => {
   const company = db.prepare('SELECT * FROM companies WHERE id = ?').get(req.user.company_id);
   res.json({ company, user: publicUser(req.user) });
-  
 });
-
 // ---------- Seções ----------
 app.get('/api/company/sections', auth, (req, res) => {
   const loc = Number(req.query.loc) || null;
+  const allowed = allowedLocationIds(req.user);
+  if (allowed && loc && !allowed.includes(loc)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
   const sections = db.prepare(`SELECT * FROM sections WHERE company_id = ? ${loc ? 'AND location_id = ?' : ''} ORDER BY position`)
     .all(...(loc ? [req.user.company_id, loc] : [req.user.company_id]));
   res.json({ sections });
 });
 app.get('/api/sections', auth, managerOnly, (req, res) => {
   const loc = Number(req.query.loc) || null;
+  const allowed = allowedLocationIds(req.user);
+  if (allowed && loc && !allowed.includes(loc)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
   const sections = db.prepare(`SELECT * FROM sections WHERE company_id = ? ${loc ? 'AND location_id = ?' : ''} ORDER BY position`)
     .all(...(loc ? [req.user.company_id, loc] : [req.user.company_id]));
   res.json({ sections });
 });
-
 app.post('/api/company/sections', auth, managerOnly, (req, res) => {
   const { name, location_id } = req.body || {};
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Informe o nome da seção.' });
   const locId = Number(location_id) || null;
+  const allowedS = allowedLocationIds(req.user);
+  if (allowedS && locId && !allowedS.includes(locId)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
   const max = db.prepare('SELECT COALESCE(MAX(position),0) AS m FROM sections WHERE company_id = ?').get(req.user.company_id).m;
   const info = db.prepare('INSERT INTO sections (company_id, name, position, location_id) VALUES (?,?,?,?)')
     .run(req.user.company_id, String(name).trim(), max + 1, locId);
   res.json({ ok: true, id: info.lastInsertRowid });
 });
-
 app.put('/api/company/sections/:id', auth, managerOnly, (req, res) => {
   const { name } = req.body || {};
   const s = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -245,7 +245,6 @@ app.put('/api/company/sections/:id', auth, managerOnly, (req, res) => {
   if (name && String(name).trim()) db.prepare('UPDATE sections SET name = ? WHERE id = ?').run(String(name).trim(), s.id);
   res.json({ ok: true });
 });
-
 app.get('/api/company/sections/:id/usage', auth, managerOnly, (req, res) => {
   const s = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!s) return res.status(404).json({ error: 'Seção não encontrada.' });
@@ -256,7 +255,6 @@ app.get('/api/company/sections/:id/usage', auth, managerOnly, (req, res) => {
     WHERE r.section_id = ? AND p.status != 'completed'`).get(s.id).c;
   res.json({ workers, activeRoutes });
 });
-
 app.delete('/api/company/sections/:id', auth, managerOnly, (req, res) => {
   const s = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!s) return res.status(404).json({ error: 'Seção não encontrada.' });
@@ -275,16 +273,16 @@ app.delete('/api/company/sections/:id', auth, managerOnly, (req, res) => {
   tx();
   res.json({ ok: true, detached: workers });
 });
-
 app.post('/api/company/sections/:id/reveal', auth, managerOnly, (req, res) => {
   const s = db.prepare('SELECT * FROM sections WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!s) return res.status(404).json({ error: 'Seção não encontrada.' });
   res.json({ password: s.password_enc ? decrypt(s.password_enc) : null });
 });
-
 // ---------- Trabalhadores ----------
 app.get('/api/company/workers', auth, managerOnly, (req, res) => {
   const loc = Number(req.query.loc) || null;
+  const allowedW = allowedLocationIds(req.user);
+  if (allowedW && loc && !allowedW.includes(loc)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
   const workers = db.prepare(`
     SELECT u.id, u.name, u.email, u.section_id, u.active, u.created_at, u.last_seen, s.name AS section_name,
       CASE WHEN u.last_seen IS NOT NULL AND u.last_seen >= datetime('now', '-2 minutes') THEN 1 ELSE 0 END AS online
@@ -293,7 +291,6 @@ app.get('/api/company/workers', auth, managerOnly, (req, res) => {
     ORDER BY CASE WHEN s.id IS NULL THEN 0 ELSE 1 END, u.name`).all(...(loc ? [req.user.company_id, loc] : [req.user.company_id]));
   res.json({ workers });
 });
-
 app.post('/api/company/workers', auth, managerOnly, (req, res) => {
   const { name, username, password, section_id } = req.body || {};
   if (!name || !username || !password) return res.status(400).json({ error: 'Preencha nome, usuário e senha.' });
@@ -306,7 +303,6 @@ app.post('/api/company/workers', auth, managerOnly, (req, res) => {
     .run(req.user.company_id, String(name).trim(), userNorm, 'worker', encrypt(password), sec.id);
   res.json({ ok: true, id: info.lastInsertRowid });
 });
-
 app.put('/api/company/workers/:id', auth, managerOnly, (req, res) => {
   const w = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'worker'").get(req.params.id, req.user.company_id);
   if (!w) return res.status(404).json({ error: 'Trabalhador não encontrado.' });
@@ -327,7 +323,6 @@ app.put('/api/company/workers/:id', auth, managerOnly, (req, res) => {
   if (password) db.prepare('UPDATE users SET password_enc = ? WHERE id = ?').run(encrypt(password), w.id);
   res.json({ ok: true });
 });
-
 app.delete('/api/company/workers/:id', auth, managerOnly, (req, res) => {
   const w = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'worker'").get(req.params.id, req.user.company_id);
   if (!w) return res.status(404).json({ error: 'Trabalhador não encontrado.' });
@@ -337,16 +332,16 @@ app.delete('/api/company/workers/:id', auth, managerOnly, (req, res) => {
   db.prepare('DELETE FROM users WHERE id = ?').run(w.id);
   res.json({ ok: true });
 });
-
 app.post('/api/company/workers/:id/reveal', auth, managerOnly, (req, res) => {
   const w = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'worker'").get(req.params.id, req.user.company_id);
   if (!w) return res.status(404).json({ error: 'Trabalhador não encontrado.' });
   res.json({ password: decrypt(w.password_enc) });
 });
-
 // ---------- Projetos (gerente) ----------
 app.get('/api/projects', auth, managerOnly, (req, res) => {
   const loc = Number(req.query.loc) || null;
+  const allowed = allowedLocationIds(req.user);
+  if (allowed && loc && !allowed.includes(loc)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
   const projects = db.prepare(`
     SELECT p.*, s.name AS section_name, u.name AS worker_name,
       (SELECT COUNT(*) FROM project_documents d WHERE d.project_id = p.id) AS doc_count,
@@ -362,11 +357,12 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
       p.due_date ASC, p.created_at DESC`).all(...(loc ? [req.user.company_id, loc] : [req.user.company_id]));
   res.json({ projects });
 });
-
 app.post('/api/projects', auth, managerOnly, (req, res) => {
   const { client_name, name, description, due_date, route, release_now, location_id } = req.body || {};
   if (!client_name || !String(client_name).trim()) return res.status(400).json({ error: 'Informe o cliente da folha.' });
   const locId = Number(location_id) || null;
+  const allowedP = allowedLocationIds(req.user);
+  if (allowedP && locId && !allowedP.includes(locId)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
   const sections = db.prepare(`SELECT * FROM sections WHERE company_id = ? ${locId ? 'AND location_id = ?' : ''} ORDER BY position`)
     .all(...(locId ? [req.user.company_id, locId] : [req.user.company_id]));
   if (!sections.length) return res.status(400).json({ error: 'Crie pelo menos uma seção antes de abrir folhas.' });
@@ -390,7 +386,6 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
   tx();
   res.json({ ok: true, id: projectId });
 });
-
 app.get('/api/projects/:id/history', auth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
@@ -403,15 +398,14 @@ app.get('/api/projects/:id/history', auth, (req, res) => {
     ORDER BY h.created_at ASC`).all(p.id);
   res.json({ project: p, history });
 });
-
 // ---------- Fila do trabalhador ----------
 app.get('/api/worker/queue', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
   const routed = db.prepare(`
     SELECT p.*, s.name AS section_name, r.id AS route_id, r.step, r.assigned_to AS route_assigned,
-      (SELECT GROUP_CONCAT(s2.name, ' + ') FROM project_route r2 JOIN sections s2 ON s2.id = r2.section_id,
+      (SELECT GROUP_CONCAT(s2.name, ' + ') FROM project_route r2 JOIN sections s2 ON s2.id = r2.section_id
+       WHERE r2.project_id = p.id AND r2.step = r.step AND r2.section_id != r.section_id) AS parallel_with,
       (SELECT MAX(step) FROM project_route WHERE project_id = p.id) AS max_step
-       WHERE r2.project_id = p.id AND r2.step = r.step AND r2.section_id != r.section_id) AS parallel_with
     FROM project_route r
     JOIN projects p ON p.id = r.project_id
     JOIN sections s ON s.id = r.section_id
@@ -428,7 +422,6 @@ app.get('/api/worker/queue', auth, (req, res) => {
   }
   res.json({ available, mine });
 });
-
 app.post('/api/projects/:id/accept', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -451,10 +444,9 @@ app.post('/api/projects/:id/accept', auth, (req, res) => {
   db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, p.current_section_id, req.user.id, 'accepted');
   res.json({ ok: true });
 });
-
 app.post('/api/projects/:id/finish', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
-    const destination = (req.body && req.body.destination === 'client') ? 'delivered' : 'at_warehouse';
+  const destination = (req.body && req.body.destination === 'client') ? 'delivered' : 'at_warehouse';
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
   const hasRoute = db.prepare('SELECT 1 FROM project_route WHERE project_id = ?').get(p.id);
@@ -471,7 +463,7 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
       if (pendingSameStep > 0) return; // aguardando seções em paralelo concluírem
       const nextStep = db.prepare("SELECT MIN(step) AS s FROM project_route WHERE project_id = ? AND status = 'pending'").get(p.id).s;
       if (nextStep == null) {
-      db.prepare("UPDATE projects SET status = ?, assigned_to = NULL, current_section_id = NULL, updated_at = datetime('now') WHERE id = ?").run(destination, p.id);
+        db.prepare("UPDATE projects SET status = ?, assigned_to = NULL, current_section_id = NULL, updated_at = datetime('now') WHERE id = ?").run(destination, p.id);
       } else {
         db.prepare("UPDATE project_route SET status = 'active' WHERE project_id = ? AND step = ?").run(p.id, nextStep);
         const first = db.prepare('SELECT section_id FROM project_route WHERE project_id = ? AND step = ? ORDER BY id LIMIT 1').get(p.id, nextStep);
@@ -487,7 +479,7 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
       const nx = db.prepare("SELECT s.name FROM project_route r JOIN sections s ON s.id = r.section_id WHERE r.project_id = ? AND r.status = 'active' ORDER BY r.id LIMIT 1").get(p.id);
       next = nx ? nx.name : null;
     }
-    return res.json({ ok: true, waiting: !!waitingFor, waiting_for: waitingFor, next, completed: proj.status === 'completed' });
+    return res.json({ ok: true, waiting: !!waitingFor, waiting_for: waitingFor, next, completed: proj.status === 'completed', destination });
   }
   // Folha antiga (sem rota): comportamento original
   const isCollabOld = !!db.prepare('SELECT 1 FROM project_collaborators WHERE project_id = ? AND user_id = ?').get(p.id, req.user.id);
@@ -500,14 +492,13 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, p.current_section_id, req.user.id, 'finished');
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, next.id, req.user.id, 'passed');
     } else {
-    db.prepare("UPDATE projects SET status = ?, assigned_to = NULL, updated_at = datetime('now') WHERE id = ?").run(destination, p.id);
+      db.prepare("UPDATE projects SET status = ?, assigned_to = NULL, updated_at = datetime('now') WHERE id = ?").run(destination, p.id);
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, p.current_section_id, req.user.id, 'finished');
     }
   });
   tx();
-  res.json({ ok: true, next: next ? next.name : null, completed: !next });
+  res.json({ ok: true, next: next ? next.name : null, completed: !next, destination });
 });
-
 // ---------- v4.6: destino final da folha (gerente corrige) ----------
 app.put('/api/projects/:id/destination', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -518,7 +509,6 @@ app.put('/api/projects/:id/destination', auth, managerOnly, (req, res) => {
   db.prepare("UPDATE projects SET status = ?, updated_at = datetime('now') WHERE id = ?").run(d, p.id);
   res.json({ ok: true });
 });
-
 app.get('/api/worker/history', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
   const history = db.prepare(`
@@ -530,9 +520,8 @@ app.get('/api/worker/history', auth, (req, res) => {
     ORDER BY h.created_at DESC LIMIT 100`).all(req.user.id);
   res.json({ history });
 });
-
 // ---------- Perfil da empresa ----------
-app.put('/api/company/profile', auth, managerOnly, (req, res) => {
+app.put('/api/company/profile', auth, managerOnly, ownerOnly, (req, res) => {
   const { company_name, nif, address, phone, website } = req.body || {};
   if (!company_name || !String(company_name).trim()) return res.status(400).json({ error: 'O nome da empresa é obrigatório.' });
   db.prepare('UPDATE companies SET name = ?, nif = ?, address = ?, phone = ?, website = ? WHERE id = ?')
@@ -541,7 +530,7 @@ app.put('/api/company/profile', auth, managerOnly, (req, res) => {
   res.json({ ok: true, company });
 });
 // ---------- E-mail da conta da empresa (protegido por senha) ----------
-app.post('/api/company/email', auth, managerOnly, (req, res) => {
+app.post('/api/company/email', auth, managerOnly, ownerOnly, (req, res) => {
   const { email, current_password } = req.body || {};
   const emailNorm = String(email || '').toLowerCase().trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) return res.status(400).json({ error: 'E-mail inválido.' });
@@ -577,43 +566,66 @@ app.put('/api/manager/profile', auth, managerOnly, (req, res) => {
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   res.json({ ok: true, user: publicUser(user) });
 });
-
 // ---------- Colaboradores (gerentes adicionais) ----------
 app.get('/api/company/collaborators', auth, managerOnly, (req, res) => {
   const collaborators = db.prepare(`
-    SELECT id, name, email, is_owner, active, created_at
+    SELECT id, name, email, is_owner, active, can_manage_collaborators, created_at
     FROM users WHERE company_id = ? AND role = 'manager'
-    ORDER BY is_owner DESC, name`).all(req.user.company_id);
+    ORDER BY is_owner DESC, name`).all(req.user.company_id).map(c => ({
+    ...c,
+    location_ids: db.prepare('SELECT location_id FROM user_locations WHERE user_id = ?').all(c.id).map(r => r.location_id)
+  }));
   res.json({ collaborators });
 });
-
-app.post('/api/company/collaborators', auth, managerOnly, (req, res) => {
+app.post('/api/company/collaborators', auth, managerOnly, manageCollabOnly, (req, res) => {
   const { name, email } = req.body || {};
   if (!name || !String(name).trim()) return res.status(400).json({ error: 'Informe o nome do colaborador.' });
   const emailNorm = String(email || '').toLowerCase().trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emailNorm)) return res.status(400).json({ error: 'E-mail inválido.' });
   const exists = db.prepare('SELECT id FROM users WHERE email = ?').get(emailNorm);
   if (exists) return res.status(400).json({ error: 'Já existe uma conta com este e-mail.' });
+  const location_ids = Array.isArray(req.body.location_ids) ? req.body.location_ids.map(Number).filter(Boolean) : [];
+  if (!location_ids.length) return res.status(400).json({ error: 'Marque pelo menos um local.' });
+  const validLocs = db.prepare('SELECT id FROM locations WHERE company_id = ?').all(req.user.company_id).map(l => l.id);
+  if (location_ids.some(id => !validLocs.includes(id))) return res.status(400).json({ error: 'Local inválido.' });
   const password = crypto.randomBytes(4).toString('hex');
-  const info = db.prepare("INSERT INTO users (company_id, name, email, role, password_hash) VALUES (?,?,?,'manager',?)")
-    .run(req.user.company_id, String(name).trim(), emailNorm, bcrypt.hashSync(password, 10));
+  let newId = null;
+  const tx = db.transaction(() => {
+    const info = db.prepare("INSERT INTO users (company_id, name, email, role, password_hash) VALUES (?,?,?,'manager',?)")
+      .run(req.user.company_id, String(name).trim(), emailNorm, bcrypt.hashSync(password, 10));
+    newId = info.lastInsertRowid;
+    for (const id of location_ids) db.prepare('INSERT OR IGNORE INTO user_locations (user_id, location_id) VALUES (?,?)').run(newId, id);
+  });
+  tx();
   console.log('=====================================');
   console.log('Colaborador criado: ' + emailNorm + ' | senha inicial: ' + password);
   console.log('=====================================');
   // TODO: enviar esta senha por e-mail quando o SMTP for configurado
-  res.json({ ok: true, id: info.lastInsertRowid, password });
+  res.json({ ok: true, id: newId, password });
 });
-
-app.put('/api/company/collaborators/:id', auth, managerOnly, (req, res) => {
+app.put('/api/company/collaborators/:id', auth, managerOnly, manageCollabOnly, (req, res) => {
   const c = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'manager'").get(req.params.id, req.user.company_id);
   if (!c) return res.status(404).json({ error: 'Colaborador não encontrado.' });
-  const { active } = req.body || {};
+  const { name, active, location_ids, can_manage_collaborators } = req.body || {};
   if (c.is_owner && active === false) return res.status(400).json({ error: 'A conta principal não pode ser desativada.' });
+  if (name !== undefined) {
+    const newName = String(name).trim();
+    if (!newName) return res.status(400).json({ error: 'O nome é obrigatório.' });
+    db.prepare('UPDATE users SET name = ? WHERE id = ?').run(newName, c.id);
+  }
   if (active !== undefined) db.prepare('UPDATE users SET active = ? WHERE id = ?').run(active ? 1 : 0, c.id);
+  if (can_manage_collaborators !== undefined && !c.is_owner) {
+    db.prepare('UPDATE users SET can_manage_collaborators = ? WHERE id = ?').run(can_manage_collaborators ? 1 : 0, c.id);
+  }
+  if (location_ids !== undefined) {
+    const ids = Array.isArray(location_ids) ? location_ids.map(Number).filter(Boolean) : [];
+    if (!ids.length) return res.status(400).json({ error: 'Marque pelo menos um local.' });
+    db.prepare('DELETE FROM user_locations WHERE user_id = ?').run(c.id);
+    for (const id of ids) db.prepare('INSERT OR IGNORE INTO user_locations (user_id, location_id) VALUES (?,?)').run(c.id, id);
+  }
   res.json({ ok: true });
 });
-
-app.post('/api/company/collaborators/:id/reset', auth, managerOnly, (req, res) => {
+app.post('/api/company/collaborators/:id/reset', auth, managerOnly, manageCollabOnly, (req, res) => {
   const c = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'manager'").get(req.params.id, req.user.company_id);
   if (!c) return res.status(404).json({ error: 'Colaborador não encontrado.' });
   if (c.is_owner) return res.status(400).json({ error: 'A senha da conta principal só pode ser alterada pelo próprio dono ou via e-mail.' });
@@ -625,16 +637,15 @@ app.post('/api/company/collaborators/:id/reset', auth, managerOnly, (req, res) =
   console.log('=====================================');
   res.json({ ok: true, password });
 });
-
-app.delete('/api/company/collaborators/:id', auth, managerOnly, (req, res) => {
+app.delete('/api/company/collaborators/:id', auth, managerOnly, manageCollabOnly, (req, res) => {
   const c = db.prepare("SELECT * FROM users WHERE id = ? AND company_id = ? AND role = 'manager'").get(req.params.id, req.user.company_id);
   if (!c) return res.status(404).json({ error: 'Colaborador não encontrado.' });
   if (c.is_owner) return res.status(400).json({ error: 'A conta principal não pode ser removida.' });
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(c.id);
+  db.prepare('DELETE FROM user_locations WHERE user_id = ?').run(c.id);
   db.prepare('DELETE FROM users WHERE id = ?').run(c.id);
   res.json({ ok: true });
 });
-
 // ---------- Alterar a própria senha (gerente) ----------
 app.post('/api/manager/change-password', auth, managerOnly, (req, res) => {
   const { current, password } = req.body || {};
@@ -645,7 +656,6 @@ app.post('/api/manager/change-password', auth, managerOnly, (req, res) => {
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(bcrypt.hashSync(password, 10), req.user.id);
   res.json({ ok: true });
 });
-
 // ---------- Prioridade ----------
 app.post('/api/projects/:id/priority', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -654,7 +664,6 @@ app.post('/api/projects/:id/priority', auth, managerOnly, (req, res) => {
   db.prepare('UPDATE projects SET priority = ? WHERE id = ?').run(priority, p.id);
   res.json({ ok: true, priority });
 });
-
 // ---------- Liberação manual da folha ----------
 app.post('/api/projects/:id/release', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -669,7 +678,6 @@ app.post('/api/projects/:id/release', auth, managerOnly, (req, res) => {
   tx();
   res.json({ ok: true });
 });
-
 // ---------- v4.6.1: Excluir folha (apenas antes de entrar em produção) ----------
 app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -695,7 +703,6 @@ app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
   tx();
   res.json({ ok: true });
 });
-
 // ---------- Editar a rota durante a produção ----------
 app.put('/api/projects/:id/route', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -727,7 +734,6 @@ app.put('/api/projects/:id/route', auth, managerOnly, (req, res) => {
   tx();
   res.json({ ok: true });
 });
-
 // ---------- Documentos ----------
 const uploadDir = path.join(DATA_DIR, 'uploads');
 fs.mkdirSync(uploadDir, { recursive: true });
@@ -736,9 +742,8 @@ const storage = multer.diskStorage({
   filename: (req, file, cb) => cb(null, Date.now() + '-' + crypto.randomBytes(4).toString('hex') + path.extname(file.originalname))
 });
 const upload = multer({ storage, limits: { fileSize: 25 * 1024 * 1024 } });
-
 // ---------- Logo da empresa ----------
-app.post('/api/company/logo', auth, managerOnly, upload.single('logo'), (req, res) => {
+app.post('/api/company/logo', auth, managerOnly, ownerOnly, upload.single('logo'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Envie uma imagem.' });
   if (!(req.file.mimetype || '').startsWith('image/')) {
     try { fs.unlinkSync(path.join(uploadDir, req.file.filename)); } catch (e) {}
@@ -752,7 +757,6 @@ app.post('/api/company/logo', auth, managerOnly, upload.single('logo'), (req, re
   const updated = db.prepare('SELECT * FROM companies WHERE id = ?').get(req.user.company_id);
   res.json({ ok: true, company: updated });
 });
-
 app.get('/api/projects/:id/detail', auth, (req, res) => {
   const p = db.prepare(`
     SELECT p.*, s.name AS section_name, u.name AS worker_name
@@ -765,10 +769,9 @@ app.get('/api/projects/:id/detail', auth, (req, res) => {
   const sections = p.location_id
     ? db.prepare('SELECT id, name, position FROM sections WHERE company_id = ? AND location_id = ? ORDER BY position').all(req.user.company_id, p.location_id)
     : db.prepare('SELECT id, name, position FROM sections WHERE company_id = ? ORDER BY position').all(req.user.company_id);
-    const route = db.prepare('SELECT r.section_id, r.step, r.status, s.name FROM project_route r JOIN sections s ON s.id = r.section_id WHERE r.project_id = ? ORDER BY r.step, s.name').all(p.id);
-   res.json({ project: p, documents, sections, route });
+  const route = db.prepare('SELECT r.section_id, r.step, r.status, s.name FROM project_route r JOIN sections s ON s.id = r.section_id WHERE r.project_id = ? ORDER BY r.step, s.name').all(p.id);
+  res.json({ project: p, documents, sections, route });
 });
-
 app.post('/api/projects/:id/documents', auth, upload.array('files', 20), (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
@@ -784,7 +787,6 @@ app.post('/api/projects/:id/documents', auth, upload.array('files', 20), (req, r
   }
   res.json({ ok: true, count: (req.files || []).length });
 });
-
 app.get('/api/projects/:id/documents', auth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
@@ -794,7 +796,6 @@ app.get('/api/projects/:id/documents', auth, (req, res) => {
     WHERE d.project_id = ? ORDER BY d.id DESC`).all(p.id);
   res.json({ documents: docs });
 });
-
 app.delete('/api/documents/:id', auth, managerOnly, (req, res) => {
   const d = db.prepare('SELECT d.*, p.company_id FROM project_documents d JOIN projects p ON p.id = d.project_id WHERE d.id = ?').get(req.params.id);
   if (!d || d.company_id !== req.user.company_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
@@ -802,7 +803,6 @@ app.delete('/api/documents/:id', auth, managerOnly, (req, res) => {
   db.prepare('DELETE FROM project_documents WHERE id = ?').run(d.id);
   res.json({ ok: true });
 });
-
 app.get('/api/documents/:id/file', auth, (req, res) => {
   const d = db.prepare('SELECT d.*, p.company_id FROM project_documents d JOIN projects p ON p.id = d.project_id WHERE d.id = ?').get(req.params.id);
   if (!d || d.company_id !== req.user.company_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
@@ -810,23 +810,13 @@ app.get('/api/documents/:id/file', auth, (req, res) => {
   if (req.query.dl === '1') res.download(filePath, d.original_name);
   else res.sendFile(filePath);
 });
-
 // ==================== v2.5.0 — foto de perfil do usuário ====================
-// INTEGRAÇÃO:
-// - `auth`  → troque pelo nome do seu middleware de rotas protegidas
-//             (o mesmo que /api/manager/profile usa)
-// - `req.user.id` → ajuste se o seu middleware guardar o usuário de outra forma
-// - caminho salvo no banco → confira o formato que o /api/company/logo usa
-//   ('/uploads/...' ou 'uploads/...') e mantenha o mesmo padrão
-
 const AVATAR_MIMES = { 'image/png': 'png', 'image/jpeg': 'jpg', 'image/webp': 'webp' };
 const AVATAR_MAX_BYTES = 2 * 1024 * 1024; // 2 MB
-
 function deleteAvatarFile(relPath) {
   if (!relPath) return;
   try { fs.unlinkSync(path.join(__dirname, relPath)); } catch (e) {}
 }
-
 // POST /api/user/avatar — recebe { image: "data:image/png;base64,..." }
 app.post('/api/user/avatar', auth, (req, res) => {
   try {
@@ -845,7 +835,6 @@ app.post('/api/user/avatar', auth, (req, res) => {
     res.status(500).json({ error: 'Erro ao salvar a foto.' });
   }
 });
-
 // DELETE /api/user/avatar — remove a foto (volta a mostrar a inicial)
 app.delete('/api/user/avatar', auth, (req, res) => {
   try {
@@ -858,21 +847,17 @@ app.delete('/api/user/avatar', auth, (req, res) => {
     res.status(500).json({ error: 'Erro ao remover a foto.' });
   }
 });
-
 // ==================== v3.0.0 — Locais e Dashboard ====================
-// INTEGRAÇÃO: usa o mesmo middleware `auth` dos endpoints anteriores.
-// Se o seu middleware tiver outro nome, troque abaixo.
-
 function getMe(req) {
   return db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
 }
-
 app.get('/api/locations', auth, (req, res) => {
   const me = getMe(req);
-  const locs = db.prepare('SELECT * FROM locations WHERE company_id = ? ORDER BY id').all(me.company_id);
+  let locs = db.prepare('SELECT * FROM locations WHERE company_id = ? ORDER BY id').all(me.company_id);
+  const allowed = allowedLocationIds(me);
+  if (allowed) locs = locs.filter(l => allowed.includes(l.id));
   res.json({ locations: locs });
 });
-
 app.post('/api/locations', auth, (req, res) => {
   const me = getMe(req);
   if (me.role !== 'manager') return res.status(403).json({ error: 'Apenas o gestor pode criar locais.' });
@@ -882,7 +867,6 @@ app.post('/api/locations', auth, (req, res) => {
   .run(me.company_id, name, String(req.body.address || '').trim() || null, String(req.body.nif || '').trim() || null);
   res.json({ location: db.prepare('SELECT * FROM locations WHERE id = ?').get(info.lastInsertRowid) });
 });
-
 app.put('/api/locations/:id', auth, (req, res) => {
   const me = getMe(req);
   if (me.role !== 'manager') return res.status(403).json({ error: 'Apenas o gestor pode editar locais.' });
@@ -912,14 +896,11 @@ app.post('/api/locations/:id/image', auth, (req, res) => {
   res.json({ location: db.prepare('SELECT * FROM locations WHERE id = ?').get(loc.id) });
 });
 
-// DELETE /api/locations/:id — exclui um local (se não estiver em uso)
 app.delete('/api/locations/:id', auth, (req, res) => {
   const me = getMe(req);
-  if (me.role !== 'manager') return res.status(403).json({ error: 'Apenas o gestor pode remover locais.' });
+  if (me.role !== 'manager') return res.status(403).json({ error: 'Apenas o gestor pode excluir locais.' });
   const loc = db.prepare('SELECT * FROM locations WHERE id = ? AND company_id = ?').get(req.params.id, me.company_id);
   if (!loc) return res.status(404).json({ error: 'Local não encontrado.' });
-  const total = db.prepare('SELECT COUNT(*) c FROM locations WHERE company_id = ?').get(me.company_id).c;
-  if (total <= 1) return res.status(400).json({ error: 'A empresa precisa de pelo menos um local.' });
   const inUse = {
     sections: db.prepare('SELECT COUNT(*) c FROM sections WHERE location_id = ?').get(loc.id).c,
     users: db.prepare('SELECT COUNT(*) c FROM users WHERE location_id = ?').get(loc.id).c,
@@ -937,9 +918,13 @@ app.get('/api/dashboard', auth, (req, res) => {
   const me = getMe(req);
   let locs = db.prepare('SELECT * FROM locations WHERE company_id = ? ORDER BY id').all(me.company_id);
   if (me.role !== 'manager') {
-    // Trabalhador vê apenas o local da sua seção
-    const sec = me.section_id ? db.prepare('SELECT location_id FROM sections WHERE id = ?').get(me.section_id) : null;
+    const sec = db.prepare('SELECT * FROM sections WHERE id = ?').get(me.section_id);
     locs = sec ? locs.filter(l => l.id === sec.location_id) : [];
+  }
+  // v4.7: colaborador vê apenas os locais vinculados
+  if (me.role === 'manager') {
+    const allowed = allowedLocationIds(me);
+    if (allowed) locs = locs.filter(l => allowed.includes(l.id));
   }
   const data = locs.map(l => {
     const active = db.prepare("SELECT COUNT(*) c FROM projects WHERE location_id = ? AND status = 'in_progress'").get(l.id).c;
@@ -947,13 +932,14 @@ app.get('/api/dashboard', auth, (req, res) => {
     const overdue = db.prepare("SELECT COUNT(*) c FROM projects WHERE location_id = ? AND status = 'in_progress' AND due_date IS NOT NULL AND due_date < date('now')").get(l.id).c;
     const urgentList = db.prepare(`
       SELECT p.id, p.name, p.client_name, p.priority, p.due_date, s.name AS section_name
-      FROM projects p LEFT JOIN sections s ON s.id = p.current_section_id
-      WHERE p.location_id = ? AND p.status = 'in_progress'
+      FROM projects p
+      LEFT JOIN sections s ON s.id = p.current_section_id
+      WHERE p.location_id = ? AND p.status = 'in_progress' AND p.priority > 0
       ORDER BY p.priority DESC, (p.due_date IS NULL), p.due_date ASC
       LIMIT 3`).all(l.id);
     return { ...l, active_projects: active, urgent, overdue, urgent_list: urgentList };
   });
-    const recent = db.prepare(`
+  const recent = db.prepare(`
     SELECT h.action, h.notes, h.created_at, p.name AS project_name, p.client_name, u.name AS user_name
     FROM project_history h
     JOIN projects p ON p.id = h.project_id
@@ -961,7 +947,15 @@ app.get('/api/dashboard', auth, (req, res) => {
     WHERE p.company_id = ?
     ORDER BY h.id DESC LIMIT 6
   `).all(me.company_id);
-  res.json({ locations: data, recent });
+  const today = db.prepare(`
+    SELECT h.action, h.notes, h.created_at, p.name AS project_name, p.client_name, u.name AS user_name
+    FROM project_history h
+    JOIN projects p ON p.id = h.project_id
+    LEFT JOIN users u ON u.id = h.worker_id
+    WHERE p.company_id = ? AND date(h.created_at) = date('now')
+    ORDER BY h.id DESC LIMIT 20
+  `).all(me.company_id);
+  res.json({ locations: data, recent, today });
 });
 
 // ==================== v3.2.0 — Anotações e alertas rápidos ====================
@@ -974,7 +968,6 @@ app.get('/api/projects/:id/notes', auth, (req, res) => {
     WHERE n.project_id = ? ORDER BY n.id DESC LIMIT 100`).all(p.id);
   res.json({ notes });
 });
-
 app.post('/api/projects/:id/notes', auth, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!p) return res.status(404).json({ error: 'Projeto não encontrado.' });
@@ -997,11 +990,34 @@ app.post('/api/projects/:id/notes', auth, (req, res) => {
   }
   res.json({ ok: true, id: info.lastInsertRowid });
 });
+app.post('/api/projects/:id/alert', auth, (req, res) => {
+  const me = getMe(req);
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, me.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+  const note = String(req.body.note || '').trim();
+  const alertType = String(req.body.type || '').trim();
+  const isEmergency = alertType === 'emergency';
+  if (!isEmergency) {
+    if (me.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
+    if (!me.section_id) return res.status(403).json({ error: 'Você não pertence a uma seção.' });
+    const active = db.prepare("SELECT 1 FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
+    if (!active) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+  }
+  const sec = me.section_id ? db.prepare('SELECT * FROM sections WHERE id = ?').get(me.section_id) : null;
+  let context = me.name + (sec ? ' — Seção: ' + sec.name : '');
+  let projectId = null;
+  if (req.body.project_id) {
+    const p2 = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.body.project_id, me.company_id);
+    if (p2) { projectId = p2.id; context += ' — Folha: ' + (p2.name || p2.client_name); }
+  }
+  const info = db.prepare('INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)')
+    .run(me.company_id, null, isEmergency ? 'emergency' : 'alert', (isEmergency ? '🚨 ' : '⚠️ ') + (alertType || 'Alerta'), (me.name + ' — ' + (p.name || p.client_name) + (note ? ': ' + note : '')).trim(), p.id);
+  res.json({ ok: true, id: info.lastInsertRowid });
+});
 
 app.get('/api/notifications', auth, (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const nots = db.prepare(`SELECT * FROM notifications WHERE company_id = ? AND (user_id = ? OR (user_id IS NULL AND role = ?)) ORDER BY id DESC LIMIT 30`)
-    .all(me.company_id, me.id, me.role);
+  const nots = db.prepare(`SELECT * FROM notifications WHERE company_id = ? AND (user_id = ? OR (user_id IS NULL AND role = ?)) ORDER BY id DESC LIMIT 30`).all(me.company_id, me.id, me.role);
   const unread = db.prepare(`SELECT COUNT(*) c FROM notifications WHERE company_id = ? AND read = 0 AND (user_id = ? OR (user_id IS NULL AND role = ?))`)
     .get(me.company_id, me.id, me.role).c;
   res.json({ notifications: nots, unread });
@@ -1031,7 +1047,6 @@ app.post('/api/emergency', auth, (req, res) => {
   res.json({ ok: true });
 });
 
-// ==================== v3.5.0 — Colaboração na seção ====================
 app.get('/api/worker/section-queue', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
   const others = db.prepare(`
@@ -1041,8 +1056,9 @@ app.get('/api/worker/section-queue', auth, (req, res) => {
     FROM project_route r
     JOIN projects p ON p.id = r.project_id
     JOIN sections s ON s.id = r.section_id
-    JOIN users u ON u.id = r.assigned_to
-    WHERE p.company_id = ? AND p.status = 'in_progress' AND r.section_id = ? AND r.status = 'active'
+    LEFT JOIN users u ON u.id = r.assigned_to
+    WHERE p.company_id = ? AND p.status = 'in_progress' AND r.section_id = ?
+      AND r.status = 'active'
       AND r.assigned_to IS NOT NULL AND r.assigned_to != ?
     ORDER BY p.priority DESC, p.due_date ASC, p.created_at DESC`).all(req.user.company_id, req.user.section_id, req.user.id);
   res.json({ others });
@@ -1065,29 +1081,6 @@ app.post('/api/projects/:id/join-request', auth, (req, res) => {
   const jri = db.prepare('INSERT INTO join_requests (project_id, requester_id, holder_id) VALUES (?,?,?)').run(p.id, me.id, route.assigned_to);
   db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id, ref_id) VALUES (?, ?, 'join_request', '🤝 Pedido de participação', ?, ?, ?)`)
     .run(me.company_id, route.assigned_to, me.name + ' quer participar da folha ' + (p.name || p.client_name) + '.', p.id, jri.lastInsertRowid);
-  res.json({ ok: true });
-});
-
-app.post('/api/join-requests/:id/accept', auth, (req, res) => {
-  const jr = db.prepare('SELECT * FROM join_requests WHERE id = ?').get(req.params.id);
-  if (!jr || jr.status !== 'pending') return res.status(404).json({ error: 'Pedido não encontrado.' });
-  if (jr.holder_id !== req.user.id) return res.status(403).json({ error: 'Apenas quem tem a folha pode aceitar.' });
-  const p = db.prepare('SELECT * FROM projects WHERE id = ?').get(jr.project_id);
-  db.prepare('INSERT OR IGNORE INTO project_collaborators (project_id, user_id) VALUES (?,?)').run(jr.project_id, jr.requester_id);
-  db.prepare("UPDATE join_requests SET status = 'accepted' WHERE id = ?").run(jr.id);
-  db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?, ?, 'join_ok', '✅ Pedido aceito', ?, ?)`)
-    .run(req.user.company_id, jr.requester_id, (req.user.name || 'Seu colega') + ' aceitou sua participação na folha ' + (p.name || p.client_name) + '.', jr.project_id);
-  res.json({ ok: true });
-});
-
-app.post('/api/join-requests/:id/refuse', auth, (req, res) => {
-  const jr = db.prepare('SELECT * FROM join_requests WHERE id = ?').get(req.params.id);
-  if (!jr || jr.status !== 'pending') return res.status(404).json({ error: 'Pedido não encontrado.' });
-  if (jr.holder_id !== req.user.id) return res.status(403).json({ error: 'Apenas quem tem a folha pode recusar.' });
-  const p = db.prepare('SELECT * FROM projects WHERE id = ?').get(jr.project_id);
-  db.prepare("UPDATE join_requests SET status = 'refused' WHERE id = ?").run(jr.id);
-  db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?, ?, 'join_no', '❌ Pedido recusado', ?, ?)`)
-    .run(req.user.company_id, jr.requester_id, (req.user.name || 'Seu colega') + ' recusou sua participação na folha ' + (p.name || p.client_name) + '.', jr.project_id);
   res.json({ ok: true });
 });
 
