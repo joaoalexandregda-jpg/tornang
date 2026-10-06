@@ -223,17 +223,24 @@ function renderRouteBuilder() {
 let npItems = [];
 let npSectionOptions = [];
 
-document.getElementById('npItemsMode').addEventListener('change', async e => {
-  const on = e.target.checked;
-  document.getElementById('npItemsWrap').hidden = !on;
-  const rb = document.getElementById(routeBuilderId);
-  if (rb) rb.style.display = on ? 'none' : '';
-  if (on && !npSectionOptions.length) {
-    try { const { sections } = await api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : '')); npSectionOptions = sections; } catch (err) {}
-  }
-  if (on && !npItems.length) npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] });
-  if (on) renderItemsBuilder();
-});
+function setupItemsMode() {
+  const cb = document.getElementById('npItemsMode');
+  if (!cb) return;
+  cb.addEventListener('change', async e => {
+    const on = e.target.checked;
+    document.getElementById('npItemsWrap').hidden = !on;
+    const rb = document.getElementById(routeBuilderId);
+    if (rb) rb.style.display = on ? 'none' : '';
+    if (on) {
+      if (!npSectionOptions.length) {
+        try { const { sections } = await api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : '')); npSectionOptions = sections; } catch (err) {}
+      }
+      if (!npItems.length) npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] });
+      renderItemsBuilder();
+    }
+  });
+}
+
 function npAddItem() { npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] }); renderItemsBuilder(); }
 function npAddTask(i) { npItems[i].tasks.push({ name: '', section_id: npSectionOptions[0] ? npSectionOptions[0].id : null }); renderItemsBuilder(); }
 function npRemoveItem(i) { npItems.splice(i, 1); renderItemsBuilder(); }
@@ -346,6 +353,8 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
       <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>
     </div>`,
     `<button class="btn primary" onclick="createProject()">Abrir folha</button>`);
+  npItems = [];
+  setupItemsMode();
   renderRouteBuilder();
 });
 async function createProject() {
