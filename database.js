@@ -297,4 +297,42 @@ db.prepare(`
   SELECT id, location_id FROM users WHERE location_id IS NOT NULL
 `).run();
 
+// Migração v5.0.0: itens (mini-projetos) e tarefas (checklist)
+db.exec(`
+CREATE TABLE IF NOT EXISTS project_sections (
+  project_id INTEGER NOT NULL,
+  section_id INTEGER NOT NULL,
+  PRIMARY KEY (project_id, section_id),
+  FOREIGN KEY (project_id) REFERENCES projects(id),
+  FOREIGN KEY (section_id) REFERENCES sections(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_items (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  project_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  quantity INTEGER DEFAULT 1,
+  ordered INTEGER DEFAULT 0,
+  status TEXT DEFAULT 'pending',
+  position INTEGER DEFAULT 0,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (project_id) REFERENCES projects(id)
+);
+
+CREATE TABLE IF NOT EXISTS project_tasks (
+  id INTEGER PRIMARY KEY AUTOINCREMENT,
+  item_id INTEGER NOT NULL,
+  section_id INTEGER NOT NULL,
+  name TEXT NOT NULL,
+  task_order INTEGER,
+  status TEXT DEFAULT 'pending',
+  assigned_to INTEGER,
+  done_by INTEGER,
+  done_at TEXT,
+  created_at TEXT DEFAULT (datetime('now')),
+  FOREIGN KEY (item_id) REFERENCES project_items(id),
+  FOREIGN KEY (section_id) REFERENCES sections(id)
+);
+`);
+
 module.exports = db;

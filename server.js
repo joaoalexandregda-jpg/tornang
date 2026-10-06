@@ -358,11 +358,59 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
   res.json({ projects });
 });
 app.post('/api/projects', auth, managerOnly, (req, res) => {
-  const { client_name, name, description, due_date, route, release_now, location_id } = req.body || {};
+  const { client_name, name, description, due_date, location_id, section_ids, items } = req.body || {};
   if (!client_name || !String(client_name).trim()) return res.status(400).json({ error: 'Informe o cliente da folha.' });
   const locId = Number(location_id) || null;
   const allowedP = allowedLocationIds(req.user);
   if (allowedP && locId && !allowedP.includes(locId)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
+
+  // ---------- Modo v5.0: projeto com itens e tarefas ----------
+  if (Array.isArray(items) && items.length) {
+    const validSections = db.prepare(`SELECT * FROM sections WHERE company_id = ? ${locId ? 'AND location_id = ?' : ''}`)
+      .all(...(locId ? [req.user.company_id, locId] : [req.user.company_id]));
+    const validIds = validSections.map(s => s.id);
+    // valida e normaliza os itens
+    const cleanItems = [];
+    for (const it of items) {
+      const iname = String(it.name || '').trim();
+      if (!iname) return res.status(400).json({ error: 'Todo item precisa de um nome.' });
+      const ordered = it.ordered ? 1 : 0;
+      const tasks = (Array.isArray(it.tasks) ? it.tasks : [])
+        .map(t => ({ name: String(t.name || '').trim(), section_id: Number(t.section_id) }))
+        .filter(t => t.name && validIds.includes(t.section_id));
+      if (!tasks.length) return res.status(400).json({ error: `O item "${iname}" precisa de pelo menos uma tarefa.` });
+      cleanItems.push({ name: iname, quantity: Math.max(1, Number(it.quantity) || 1), ordered, tasks });
+    }
+    // pool = união das seções das tarefas (+ section_ids explícitos)
+    const pool = new Set(cleanItems.flatMap(i => i.tasks.map(t => t.section_id)));
+    for (const sid of (Array.isArray(section_ids) ? section_ids : [])) if (validIds.includes(Number(sid))) pool.add(Number(sid));
+    const status = 'in_progress';
+    let projectId = null;
+    const tx = db.transaction(() => {
+      const pi = db.prepare('INSERT INTO projects (company_id, location_id, client_name, name, description, due_date, status) VALUES (?,?,?,?,?,?,?)')
+        .run(req.user.company_id, locId, String(client_name).trim(), String(name || '').trim(), String(description || '').trim(), String(due_date || '').trim() || null, status);
+      projectId = pi.lastInsertRowid;
+      const insPool = db.prepare('INSERT OR IGNORE INTO project_sections (project_id, section_id) VALUES (?,?)');
+      for (const sid of pool) insPool.run(projectId, sid);
+      const insItem = db.prepare('INSERT INTO project_items (project_id, name, quantity, ordered, status, position) VALUES (?,?,?,?,?,?)');
+      const insTask = db.prepare('INSERT INTO project_tasks (item_id, section_id, name, task_order, status) VALUES (?,?,?,?,?)');
+      cleanItems.forEach((it, idx) => {
+        const ii = insItem.run(projectId, it.name, it.quantity, it.ordered, 'in_progress', idx);
+        it.tasks.forEach((t, ti) => {
+          const st = it.ordered ? (ti === 0 ? 'active' : 'pending') : 'active';
+          insTask.run(ii.lastInsertRowid, t.section_id, t.name, it.ordered ? ti + 1 : null, st);
+        });
+      });
+      const first = db.prepare(`SELECT t.section_id FROM project_tasks t JOIN project_items i ON i.id = t.item_id
+        WHERE i.project_id = ? AND t.status = 'active' ORDER BY i.position, t.task_order LIMIT 1`).get(projectId);
+      db.prepare('UPDATE projects SET current_section_id = ? WHERE id = ?').run(first ? first.section_id : null, projectId);
+      db.prepare('INSERT INTO project_history (project_id, action) VALUES (?,?)').run(projectId, 'created');
+    });
+    tx();
+    return res.json({ ok: true, id: projectId });
+  }
+
+  // ---------- Modo clássico: folha simples por rota de seções (inalterado) ----------
   const sections = db.prepare(`SELECT * FROM sections WHERE company_id = ? ${locId ? 'AND location_id = ?' : ''} ORDER BY position`)
     .all(...(locId ? [req.user.company_id, locId] : [req.user.company_id]));
   if (!sections.length) return res.status(400).json({ error: 'Crie pelo menos uma seção antes de abrir folhas.' });
@@ -371,7 +419,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
     : sections.map(s => [s.id]);
   steps = steps.filter(st => st.length);
   if (!steps.length) return res.status(400).json({ error: 'Selecione pelo menos uma seção para a rota.' });
-  const status = release_now === false ? 'pending_release' : 'in_progress';
+  const status = 'in_progress';
   const info = db.prepare('INSERT INTO projects (company_id, location_id, client_name, name, description, due_date, current_section_id, status) VALUES (?,?,?,?,?,?,?,?)')
     .run(req.user.company_id, locId, String(client_name).trim(), String(name || '').trim(), String(description || '').trim(), String(due_date || '').trim() || null, steps[0][0], status);
   const projectId = info.lastInsertRowid;
@@ -379,7 +427,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
   const tx = db.transaction(() => {
     steps.forEach((st, i) => {
       const stepNo = i + 1;
-      for (const sid of st) ins.run(projectId, sid, stepNo, (status === 'in_progress' && stepNo === 1) ? 'active' : 'pending');
+      for (const sid of st) ins.run(projectId, sid, stepNo, stepNo === 1 ? 'active' : 'pending');
     });
     db.prepare('INSERT INTO project_history (project_id, section_id, action) VALUES (?,?,?)').run(projectId, steps[0][0], 'created');
   });
@@ -419,6 +467,24 @@ app.get('/api/worker/queue', auth, (req, res) => {
     delete item.route_assigned;
     if (row.route_assigned === req.user.id || collabIds.includes(row.project_id)) mine.push(item);
     else if (!row.route_assigned) available.push(item);
+  }
+    // ---------- v5.0: tarefas da seção ----------
+  const taskRows = db.prepare(`
+    SELECT t.id AS task_id, t.name AS task_name, t.status AS task_status, t.task_order, t.assigned_to AS task_assigned,
+      i.id AS item_id, i.name AS item_name, i.quantity, i.ordered, i.status AS item_status,
+      p.id, p.client_name, p.name AS project_name, p.description, p.priority, p.due_date,
+      s.name AS section_name
+    FROM project_tasks t
+    JOIN project_items i ON i.id = t.item_id
+    JOIN projects p ON p.id = i.project_id
+    JOIN sections s ON s.id = t.section_id
+    WHERE p.company_id = ? AND p.status = 'in_progress' AND t.section_id = ? AND t.status = 'active'
+    ORDER BY p.priority DESC, p.due_date ASC, p.created_at DESC`).all(req.user.company_id, req.user.section_id);
+  for (const row of taskRows) {
+    const item = { ...row, type: 'task', is_ordered: !!row.ordered };
+    delete item.task_assigned;
+    if (row.task_assigned === req.user.id || collabIds.includes(row.project_id)) mine.push(item);
+    else if (!row.task_assigned) available.push(item);
   }
   res.json({ available, mine });
 });
@@ -499,6 +565,107 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
   tx();
   res.json({ ok: true, next: next ? next.name : null, completed: !next, destination });
 });
+
+// ---------- v5.0: motor de tarefas ----------
+app.post('/api/tasks/:id/accept', auth, (req, res) => {
+  if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
+  const t = db.prepare(`
+    SELECT t.*, p.company_id, p.status AS project_status FROM project_tasks t
+    JOIN project_items i ON i.id = t.item_id
+    JOIN projects p ON p.id = i.project_id
+    WHERE t.id = ?`).get(req.params.id);
+  if (!t || t.company_id !== req.user.company_id) return res.status(404).json({ error: 'Tarefa não encontrada.' });
+  if (t.project_status !== 'in_progress') return res.status(400).json({ error: 'Este projeto não está em produção.' });
+  if (t.section_id !== req.user.section_id) return res.status(400).json({ error: 'Esta tarefa não é da sua seção.' });
+  if (t.status !== 'active') return res.status(400).json({ error: 'Esta tarefa ainda não está liberada.' });
+  if (t.assigned_to && t.assigned_to !== req.user.id) return res.status(400).json({ error: 'Esta tarefa já foi assumida.' });
+  db.prepare('UPDATE project_tasks SET assigned_to = ? WHERE id = ?').run(req.user.id, t.id);
+  db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action, notes) VALUES (?,?,?,?,?)')
+    .run((db.prepare('SELECT project_id FROM project_items WHERE id = ?').get(t.item_id)).project_id, t.section_id, req.user.id, 'task_accepted', t.name);
+  res.json({ ok: true });
+});
+
+app.post('/api/tasks/:id/finish', auth, (req, res) => {
+  if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
+  const destination = (req.body && req.body.destination === 'client') ? 'delivered' : 'at_warehouse';
+  const nextWorkerId = Number((req.body || {}).next_worker_id) || null;
+  const t = db.prepare(`
+    SELECT t.*, i.project_id, i.ordered, i.name AS item_name, p.company_id, p.status AS project_status
+    FROM project_tasks t
+    JOIN project_items i ON i.id = t.item_id
+    JOIN projects p ON p.id = i.project_id
+    WHERE t.id = ?`).get(req.params.id);
+  if (!t || t.company_id !== req.user.company_id) return res.status(404).json({ error: 'Tarefa não encontrada.' });
+  if (t.project_status !== 'in_progress') return res.status(400).json({ error: 'Este projeto não está em produção.' });
+  if (t.status !== 'active') return res.status(400).json({ error: 'Esta tarefa não está ativa.' });
+  const isCollab = !!db.prepare('SELECT 1 FROM project_collaborators WHERE project_id = ? AND user_id = ?').get(t.project_id, req.user.id);
+  if (t.assigned_to && t.assigned_to !== req.user.id && !isCollab) return res.status(400).json({ error: 'Você não é o responsável por esta tarefa.' });
+
+  let nextTask = null, itemDone = false, projectDone = false;
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE project_tasks SET status = ?, done_by = ?, done_at = datetime(\'now\') WHERE id = ?').run('done', req.user.id, t.id);
+    db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action, notes) VALUES (?,?,?,?,?)')
+      .run(t.project_id, t.section_id, req.user.id, 'task_done', t.name);
+    // ordenada: ativa a próxima tarefa do item
+    if (t.ordered) {
+      nextTask = db.prepare('SELECT * FROM project_tasks WHERE item_id = ? AND status = \'pending\' ORDER BY task_order LIMIT 1').get(t.item_id);
+      if (nextTask) {
+        db.prepare('UPDATE project_tasks SET status = \'active\' WHERE id = ?').run(nextTask.id);
+        if (nextWorkerId) {
+          const nw = db.prepare('SELECT * FROM users WHERE id = ? AND section_id = ? AND role = \'worker\'').get(nextWorkerId, nextTask.section_id);
+          if (nw) {
+            db.prepare('UPDATE project_tasks SET assigned_to = ? WHERE id = ?').run(nw.id, nextTask.id);
+            db.prepare('INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)')
+              .run(t.company_id, nw.id, 'task_assigned', '📋 Tarefa atribuída a você', req.user.name + ' te passou a tarefa "' + nextTask.name + '" (' + t.item_name + ').', t.project_id);
+          }
+        }
+      }
+    }
+    // item concluído?
+    const pending = db.prepare('SELECT COUNT(*) c FROM project_tasks WHERE item_id = ? AND status != \'done\'').get(t.item_id).c;
+    if (pending === 0) {
+      db.prepare('UPDATE project_items SET status = \'done\' WHERE id = ?').run(t.item_id);
+      itemDone = true;
+      // projeto concluído?
+      const itemsLeft = db.prepare('SELECT COUNT(*) c FROM project_items WHERE project_id = ? AND status != \'done\'').get(t.project_id).c;
+      if (itemsLeft === 0) {
+        db.prepare('UPDATE projects SET status = ?, assigned_to = NULL, current_section_id = NULL, updated_at = datetime(\'now\') WHERE id = ?').run(destination, t.project_id);
+        db.prepare('INSERT INTO project_history (project_id, action) VALUES (?,?)').run(t.project_id, 'finished');
+        projectDone = true;
+      }
+    }
+  });
+  tx();
+  res.json({ ok: true, next_task: nextTask ? nextTask.name : null, next_section_id: nextTask ? nextTask.section_id : null, item_done: itemDone, project_done: projectDone, destination });
+});
+
+app.get('/api/tasks/:id/next', auth, (req, res) => {
+  if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
+  const t = db.prepare(`
+    SELECT t.*, i.project_id, i.ordered FROM project_tasks t
+    JOIN project_items i ON i.id = t.item_id WHERE t.id = ?`).get(req.params.id);
+  if (!t) return res.status(404).json({ error: 'Tarefa não encontrada.' });
+  const p = db.prepare('SELECT company_id FROM projects WHERE id = ?').get(t.project_id);
+  if (!p || p.company_id !== req.user.company_id) return res.status(404).json({ error: 'Tarefa não encontrada.' });
+  const pendingInItem = db.prepare("SELECT COUNT(*) c FROM project_tasks WHERE item_id = ? AND status != 'done'").get(t.item_id).c;
+  const itemsLeft = db.prepare("SELECT COUNT(*) c FROM project_items WHERE project_id = ? AND status != 'done'").get(t.project_id).c;
+  const completes = pendingInItem === 1 && itemsLeft === 1;
+  let next = null;
+  if (t.ordered) {
+    const nt = db.prepare(`
+      SELECT t2.id, t2.name, s.name AS section_name FROM project_tasks t2
+      JOIN sections s ON s.id = t2.section_id
+      WHERE t2.item_id = ? AND t2.status = 'pending' ORDER BY t2.task_order LIMIT 1`).get(t.item_id);
+    if (nt) {
+      const workers = db.prepare(`
+        SELECT id, name FROM users WHERE section_id = (SELECT section_id FROM project_tasks WHERE id = ?)
+        AND role = 'worker' AND active = 1 ORDER BY name`).all(nt.id);
+      next = { id: nt.id, name: nt.name, section_name: nt.section_name, workers };
+    }
+  }
+  res.json({ next, completes_project: completes });
+});
+
 // ---------- v4.6: destino final da folha (gerente corrige) ----------
 app.put('/api/projects/:id/destination', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -770,7 +937,17 @@ app.get('/api/projects/:id/detail', auth, (req, res) => {
     ? db.prepare('SELECT id, name, position FROM sections WHERE company_id = ? AND location_id = ? ORDER BY position').all(req.user.company_id, p.location_id)
     : db.prepare('SELECT id, name, position FROM sections WHERE company_id = ? ORDER BY position').all(req.user.company_id);
   const route = db.prepare('SELECT r.section_id, r.step, r.status, s.name FROM project_route r JOIN sections s ON s.id = r.section_id WHERE r.project_id = ? ORDER BY r.step, s.name').all(p.id);
-  res.json({ project: p, documents, sections, route });
+    const items = db.prepare('SELECT * FROM project_items WHERE project_id = ? ORDER BY position, id').all(p.id);
+  const tasks = db.prepare(`
+    SELECT t.*, s.name AS section_name, u.name AS assigned_name, dw.name AS done_by_name
+    FROM project_tasks t
+    JOIN sections s ON s.id = t.section_id
+    LEFT JOIN users u ON u.id = t.assigned_to
+    LEFT JOIN users dw ON dw.id = t.done_by
+    WHERE t.item_id IN (SELECT id FROM project_items WHERE project_id = ?)
+    ORDER BY t.task_order IS NULL, t.task_order, t.id`).all(p.id);
+  const itemsTree = items.map(it => ({ ...it, tasks: tasks.filter(t => t.item_id === it.id) }));
+  res.json({ project: p, documents, sections, route, items: itemsTree });
 });
 app.post('/api/projects/:id/documents', auth, upload.array('files', 20), (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);

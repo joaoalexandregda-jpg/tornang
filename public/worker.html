@@ -111,11 +111,25 @@ async function api(path, opts = {}) {
 }
 
 const jobCache = {};
+const taskCache = {};
 
 async function loadQueue() {
   const { available, mine } = await api('/api/worker/queue');
   const av = document.getElementById('availableList');
   av.innerHTML = available.length ? available.map(p => {
+        if (p.type === 'task') {
+      taskCache[p.task_id] = p; jobCache[p.id] = p;
+      return `
+    <div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
+      <h3>${esc(p.client_name)}</h3>
+      ${p.project_name ? `<p><b>${esc(p.project_name)}</b></p>` : ''}
+      <p>📋 <b>${esc(p.task_name)}</b> <span class="badge orange">${p.quantity > 1 ? p.quantity + 'x ' : ''}${esc(p.item_name)}</span></p>
+      <p>Seção: <span class="badge blue">${esc(p.section_name)}</span> ${p.is_ordered ? '<span class="badge gray">sequência</span>' : '<span class="badge green">checklist</span>'}</p>
+      <div class="row-actions" style="margin-top:10px">
+        <button class="btn success small" onclick="event.stopPropagation();acceptTask(${p.task_id})">Assumir</button>
+      </div>
+    </div>`;
+    }
     jobCache[p.id] = p;
     return `
     <div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
@@ -144,6 +158,20 @@ async function loadQueue() {
 
   const mi = document.getElementById('mineList');
   mi.innerHTML = mine.length ? mine.map(p => {
+    if (p.type === 'task') {
+      taskCache[p.task_id] = p; jobCache[p.id] = p;
+      return `
+<div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
+      <h3>${esc(p.client_name)}</h3>
+      ${p.project_name ? `<p><b>${esc(p.project_name)}</b></p>` : ''}
+      <p>📋 <b>${esc(p.task_name)}</b> <span class="badge orange">${p.quantity > 1 ? p.quantity + 'x ' : ''}${esc(p.item_name)}</span></p>
+      <p>Seção: <span class="badge blue">${esc(p.section_name)}</span> ${p.is_ordered ? '<span class="badge gray">sequência</span>' : '<span class="badge green">checklist</span>'}</p>
+      <div class="row-actions" style="margin-top:10px">
+        <button class="btn ghost small" onclick="event.stopPropagation();openNotes(${p.id}, '${esc(p.name || p.client_name)}')">💬 Anotações</button>
+        <button class="btn primary small" onclick="event.stopPropagation();finishTask(${p.task_id})">✅ Concluir tarefa</button>
+      </div>
+    </div>`;
+    }
     jobCache[p.id] = p;
     return `
     <div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
@@ -164,6 +192,35 @@ async function loadQueue() {
 async function accept(id) {
   try {
     await api('/api/projects/' + id + '/accept', { method: 'POST' });
+    loadQueue(); loadHistory();
+  } catch (err) { alert(err.message); }
+}
+
+async function acceptTask(taskId) {
+  try {
+    await api('/api/tasks/' + taskId + '/accept', { method: 'POST' });
+    loadQueue(); loadHistory();
+  } catch (err) { alert(err.message); }
+}
+async function finishTask(taskId) {
+  let destination = null, nextWorkerId = null;
+  try {
+    const { next, completes_project } = await api('/api/tasks/' + taskId + '/next');
+    if (completes_project) {
+      destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronto para entrega ao cliente') ? 'warehouse' : 'client';
+    }
+    if (next) {
+      const list = next.workers.map(w => '• ' + w.name).join('\n');
+      const pick = prompt('Próxima tarefa: "' + next.name + '" — ' + next.section_name + '\n\nEnviar para qual trabalhador? Digite o nome, ou deixe vazio para soltar na fila da seção:\n\n' + list);
+      if (pick === null) return;
+      const chosen = next.workers.find(w => w.name.toLowerCase() === pick.trim().toLowerCase());
+      if (pick.trim() && !chosen) return alert('Trabalhador não encontrado — tarefa não concluída.');
+      if (chosen) nextWorkerId = chosen.id;
+    }
+    const data = await api('/api/tasks/' + taskId + '/finish', { method: 'POST', body: JSON.stringify({ destination, next_worker_id: nextWorkerId }) });
+    if (data.project_done) alert(destination === 'client' ? '🚚 Projeto pronto para entrega ao cliente!' : '📦 Projeto enviado ao armazém!');
+    else if (data.item_done) alert('✅ Item concluído!');
+    else alert('✅ Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
     loadQueue(); loadHistory();
   } catch (err) { alert(err.message); }
 }
@@ -194,7 +251,7 @@ async function askToJoin(id) {
 
 async function loadHistory() {
   const { history } = await api('/api/worker/history');
-  const labels = { accepted: 'Assumi', finished: 'Concluí', passed: 'Passei para' };
+  const labels = { accepted: 'Assumi', finished: 'Concluí', passed: 'Passei para', task_accepted: 'Assumi tarefa', task_done: 'Concluí tarefa' };
   const el = document.getElementById('historyList');
   el.innerHTML = history.length ? `<div class="table-wrap"><table><thead><tr><th>Data</th><th>Folha</th><th>Seção</th><th>Ação</th></tr></thead><tbody>` +
     history.map(h => `<tr><td>${esc(h.created_at)}</td><td>${esc(h.client_name)}${h.project_name ? `<br><small class="muted">${esc(h.project_name)}</small>` : ''}</td><td>${esc(h.section_name || '—')}</td><td>${labels[h.action] || h.action}</td></tr>`).join('') +

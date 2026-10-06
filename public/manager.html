@@ -218,6 +218,57 @@ function renderRouteBuilder() {
     <p class="muted" style="font-size:12px;margin-top:8px">Marque as seções para adicioná-las (entram como nova etapa no fim). Arraste pelo ⠿ para reordenar, "Juntar c/ anterior" coloca a etapa em paralelo com a anterior, "Separar" desfaz e ✕ remove a etapa.</p>`;
   attachRouteDrag(el);
 }
+
+// ===== v5.0: construtor de itens e tarefas =====
+let npItems = [];
+let npSectionOptions = [];
+
+document.getElementById('npItemsMode').addEventListener('change', async e => {
+  const on = e.target.checked;
+  document.getElementById('npItemsWrap').hidden = !on;
+  const rb = document.getElementById(routeBuilderId);
+  if (rb) rb.style.display = on ? 'none' : '';
+  if (on && !npSectionOptions.length) {
+    try { const { sections } = await api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : '')); npSectionOptions = sections; } catch (err) {}
+  }
+  if (on && !npItems.length) npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] });
+  if (on) renderItemsBuilder();
+});
+function npAddItem() { npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] }); renderItemsBuilder(); }
+function npAddTask(i) { npItems[i].tasks.push({ name: '', section_id: npSectionOptions[0] ? npSectionOptions[0].id : null }); renderItemsBuilder(); }
+function npRemoveItem(i) { npItems.splice(i, 1); renderItemsBuilder(); }
+function npRemoveTask(i, ti) { npItems[i].tasks.splice(ti, 1); renderItemsBuilder(); }
+function npMoveTask(i, ti, dir) {
+  const arr = npItems[i].tasks, j = ti + dir;
+  if (j < 0 || j >= arr.length) return;
+  [arr[ti], arr[j]] = [arr[j], arr[ti]]; renderItemsBuilder();
+}
+function renderItemsBuilder() {
+  const el = document.getElementById('npItemsList');
+  if (!npItems.length) { el.innerHTML = '<p class="empty">Nenhum item ainda.</p>'; return; }
+  el.innerHTML = npItems.map((it, i) => `
+    <div class="item" style="margin-bottom:10px">
+      <div class="form-row">
+        <div class="field"><input placeholder="Item (ex.: 30 placas de saída)" value="${esc(it.name)}" oninput="npItems[${i}].name=this.value"></div>
+        <div class="field" style="max-width:80px"><input type="number" min="1" value="${it.quantity}" title="Quantidade" oninput="npItems[${i}].quantity=Number(this.value)||1"></div>
+        <label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" style="width:auto" ${it.ordered ? 'checked' : ''} onchange="npItems[${i}].ordered=this.checked;renderItemsBuilder()"> Ordenado</label>
+        <button class="btn ghost small" onclick="npRemoveItem(${i})">🗑</button>
+      </div>
+      ${it.tasks.map((t, ti) => `
+      <div class="form-row" style="margin-left:18px">
+        <div class="field"><input placeholder="Tarefa ${it.ordered ? (ti + 1) + ' — ' : ''}(ex.: desenho, corte, pintura)" value="${esc(t.name)}" oninput="npItems[${i}].tasks[${ti}].name=this.value"></div>
+        <div class="field"><select onchange="npItems[${i}].tasks[${ti}].section_id=Number(this.value)">
+          <option value="">Seção...</option>
+          ${npSectionOptions.map(s => `<option value="${s.id}" ${t.section_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+        </select></div>
+        ${it.ordered ? `<button class="btn ghost small" onclick="npMoveTask(${i},${ti},-1)" ${ti === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn ghost small" onclick="npMoveTask(${i},${ti},1)" ${ti === it.tasks.length - 1 ? 'disabled' : ''}>↓</button>` : ''}
+        <button class="btn ghost small" onclick="npRemoveTask(${i},${ti})">✕</button>
+      </div>`).join('')}
+      <button class="btn ghost small" style="margin:4px 0 0 18px" onclick="npAddTask(${i})">+ Tarefa</button>
+    </div>`).join('');
+}
+
 function attachRouteDrag(el) {
   if (el.dataset.dragReady) return;
   el.dataset.dragReady = '1';
@@ -285,26 +336,42 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
     <label>Descrição<input type="text" id="npDesc" placeholder="Opcional"></label>
     <label>Prazo<input type="date" id="npDue"></label>
     <label>Documentos (opcional)<input type="file" id="npFiles" multiple></label>
-    <h3 style="font-size:14px;margin:14px 0 6px">Rota de produção</h3>
+      <h3 style="font-size:14px;margin:14px 0 6px">Rota de produção</h3>
     <div id="routeBuilderNew"></div>
-    <label style="margin-top:10px"><input type="checkbox" id="npRelease" checked style="width:auto"> Liberar para produção agora (desmarque para liberar manualmente depois)</label>`,
+    <label style="display:flex;align-items:center;gap:8px;margin:10px 0">
+      <input type="checkbox" id="npItemsMode" style="width:auto;margin:0"> 📦 Projeto com itens e tarefas (checklist)
+    </label>
+    <div id="npItemsWrap" hidden>
+      <div id="npItemsList"></div>
+      <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>
+    </div>`,
     `<button class="btn primary" onclick="createProject()">Abrir folha</button>`);
   renderRouteBuilder();
 });
 async function createProject() {
   const client_name = document.getElementById('npClient').value.trim();
   if (!client_name) return alert('Informe o cliente.');
-  if (!routeSteps.length) return alert('Selecione pelo menos uma seção para a rota.');
+  const itemsMode = document.getElementById('npItemsMode') && document.getElementById('npItemsMode').checked;
+  let body;
+  if (itemsMode) {
+    if (!npItems.length) return alert('Adicione pelo menos um item.');
+    const items = npItems.map(it => ({
+      name: it.name.trim(),
+      quantity: Math.max(1, Number(it.quantity) || 1),
+      ordered: !!it.ordered,
+      tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
+    }));
+    for (const it of items) {
+      if (!it.name) return alert('Todo item precisa de um nome.');
+      if (!it.tasks.length) return alert('O item "' + it.name + '" precisa de pelo menos uma tarefa com seção.');
+    }
+    body = { client_name, location_id: currentLocId, name: document.getElementById('npName').value.trim(), description: document.getElementById('npDesc').value.trim(), due_date: document.getElementById('npDue').value, items };
+  } else {
+    if (!routeSteps.length) return alert('Selecione pelo menos uma seção para a rota.');
+    body = { client_name, location_id: currentLocId, name: document.getElementById('npName').value.trim(), description: document.getElementById('npDesc').value.trim(), due_date: document.getElementById('npDue').value, route: routeSteps };
+  }
   try {
-    const { id } = await api('/api/projects', { method: 'POST', body: JSON.stringify({
-      client_name,
-      location_id: currentLocId,
-      name: document.getElementById('npName').value.trim(),
-      description: document.getElementById('npDesc').value.trim(),
-      due_date: document.getElementById('npDue').value,
-      route: routeSteps,
-      release_now: document.getElementById('npRelease').checked
-    })});
+    const { id } = await api('/api/projects', { method: 'POST', body: JSON.stringify(body) });
     const files = document.getElementById('npFiles').files;
     if (files.length) {
       const fd = new FormData();
