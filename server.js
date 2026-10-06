@@ -365,7 +365,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
   if (allowedP && locId && !allowedP.includes(locId)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
 
   // ---------- Modo v5.0: projeto com itens e tarefas ----------
-  if (Array.isArray(items) && items.length) {
+  if (Array.isArray(items)) {
     const validSections = db.prepare(`SELECT * FROM sections WHERE company_id = ? ${locId ? 'AND location_id = ?' : ''}`)
       .all(...(locId ? [req.user.company_id, locId] : [req.user.company_id]));
     const validIds = validSections.map(s => s.id);

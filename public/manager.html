@@ -222,24 +222,7 @@ function renderRouteBuilder() {
 // ===== v5.0: construtor de itens e tarefas =====
 let npItems = [];
 let npSectionOptions = [];
-
-function setupItemsMode() {
-  const cb = document.getElementById('npItemsMode');
-  if (!cb) return;
-  cb.addEventListener('change', async e => {
-    const on = e.target.checked;
-    document.getElementById('npItemsWrap').hidden = !on;
-    const rb = document.getElementById(routeBuilderId);
-    if (rb) rb.style.display = on ? 'none' : '';
-    if (on) {
-      if (!npSectionOptions.length) {
-        try { const { sections } = await api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : '')); npSectionOptions = sections; } catch (err) {}
-      }
-      if (!npItems.length) npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] });
-      renderItemsBuilder();
-    }
-  });
-}
+let npSelectedSections = [];
 
 function npAddItem() { npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] }); renderItemsBuilder(); }
 function npAddTask(i) { npItems[i].tasks.push({ name: '', section_id: npSectionOptions[0] ? npSectionOptions[0].id : null }); renderItemsBuilder(); }
@@ -274,6 +257,40 @@ function renderItemsBuilder() {
       </div>`).join('')}
       <button class="btn ghost small" style="margin:4px 0 0 18px" onclick="npAddTask(${i})">+ Tarefa</button>
     </div>`).join('');
+}
+
+
+
+
+function renderSectionBubbles(sections) {
+  document.getElementById('npSectionBubbles').innerHTML = sections.map(s => {
+    const on = npSelectedSections.includes(s.id);
+    return `<button type="button" class="bubble ${on ? 'on' : ''}" onclick="toggleBubble(${s.id})">${esc(s.name)}<span>${on ? '−' : '+'}</span></button>`;
+  }).join('');
+}
+function toggleBubble(id) {
+  npSelectedSections = npSelectedSections.includes(id)
+    ? npSelectedSections.filter(x => x !== id)
+    : npSelectedSections.concat(id);
+  renderSectionBubbles(sectionsCache);
+}
+
+function setupDropzone() {
+  const dz = document.getElementById('npDropzone');
+  const input = document.getElementById('npFiles');
+  dz.onclick = () => input.click();
+  dz.ondragover = e => { e.preventDefault(); dz.classList.add('drag'); };
+  dz.ondragleave = () => dz.classList.remove('drag');
+  dz.ondrop = e => {
+    e.preventDefault(); dz.classList.remove('drag');
+    try { input.files = e.dataTransfer.files; } catch (err) { input.files = null; }
+    const n = e.dataTransfer.files.length;
+    dz.querySelector('p').textContent = n ? n + ' arquivo(s) selecionado(s)' : 'Clique ou arraste seus arquivos aqui';
+  };
+  input.onchange = () => {
+    const n = input.files.length;
+    dz.querySelector('p').textContent = n ? n + ' arquivo(s) selecionado(s)' : 'Clique ou arraste seus arquivos aqui';
+  };
 }
 
 function attachRouteDrag(el) {
@@ -334,53 +351,59 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
   const { sections } = await api('/api/sections' + (currentLocId ? '?loc=' + currentLocId : ''));
   if (!sections.length) return alert('Crie pelo menos uma seção antes de abrir folhas.');
   sectionsCache = sections;
-  routeSteps = [];
-  routeDoneIds = [];
-  routeBuilderId = 'routeBuilderNew';
+  npItems = [];
+  npSelectedSections = [];
   openModal('Nova folha de obra', `
-    <label>Cliente / Obra *<input type="text" id="npClient" required></label>
-    <label>Nome do projeto<input type="text" id="npName" placeholder="Ex.: Cozinha Lote 3 (opcional)"></label>
-    <label>Descrição<input type="text" id="npDesc" placeholder="Opcional"></label>
-    <label>Prazo<input type="date" id="npDue"></label>
-    <label>Documentos (opcional)<input type="file" id="npFiles" multiple></label>
-      <h3 style="font-size:14px;margin:14px 0 6px">Rota de produção</h3>
-    <div id="routeBuilderNew"></div>
-    <label style="display:flex;align-items:center;gap:8px;margin:10px 0">
-      <input type="checkbox" id="npItemsMode" style="width:auto;margin:0"> 📦 Projeto com itens e tarefas (checklist)
-    </label>
-    <div id="npItemsWrap" hidden>
+    <div class="modal-scroll">
+      <div class="grid2">
+        <label>Cliente / Obra *<input type="text" id="npClient" required></label>
+        <label>Nome do projeto *<input type="text" id="npName"></label>
+      </div>
+      <div class="grid2">
+        <label>Prazo *<input type="date" id="npDue"></label>
+        <label>Descrição (opcional)<input type="text" id="npDesc"></label>
+      </div>
+      <h3 style="font-size:14px;margin:14px 0 2px">Seções do projeto *</h3>
+      <p class="hint">Toque em + para incluir a seção neste projeto.</p>
+      <div id="npSectionBubbles" class="bubble-row"></div>
+      <h3 style="font-size:14px;margin:14px 0 6px">Itens e tarefas</h3>
+      <p class="hint">Cada item é uma parte do projeto (ex.: 30 placas de saída). Adicione as tarefas na ordem em que acontecem.</p>
       <div id="npItemsList"></div>
       <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>
+      <h3 style="font-size:14px;margin:14px 0 6px">Documentos (opcional)</h3>
+      <div id="npDropzone" class="dropzone">⬆️<p>Clique ou arraste seus arquivos aqui</p></div>
+      <input type="file" id="npFiles" multiple hidden>
     </div>`,
     `<button class="btn primary" onclick="createProject()">Abrir folha</button>`);
-  npItems = [];
-  setupItemsMode();
-  renderRouteBuilder();
+  renderSectionBubbles(sections);
+  renderItemsBuilder();
+  setupDropzone();
 });
 async function createProject() {
   const client_name = document.getElementById('npClient').value.trim();
+  const name = document.getElementById('npName').value.trim();
+  const due_date = document.getElementById('npDue').value;
   if (!client_name) return alert('Informe o cliente.');
-  const itemsMode = document.getElementById('npItemsMode') && document.getElementById('npItemsMode').checked;
-  let body;
-  if (itemsMode) {
-    if (!npItems.length) return alert('Adicione pelo menos um item.');
-    const items = npItems.map(it => ({
-      name: it.name.trim(),
-      quantity: Math.max(1, Number(it.quantity) || 1),
-      ordered: !!it.ordered,
-      tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
-    }));
-    for (const it of items) {
-      if (!it.name) return alert('Todo item precisa de um nome.');
-      if (!it.tasks.length) return alert('O item "' + it.name + '" precisa de pelo menos uma tarefa com seção.');
-    }
-    body = { client_name, location_id: currentLocId, name: document.getElementById('npName').value.trim(), description: document.getElementById('npDesc').value.trim(), due_date: document.getElementById('npDue').value, items };
-  } else {
-    if (!routeSteps.length) return alert('Selecione pelo menos uma seção para a rota.');
-    body = { client_name, location_id: currentLocId, name: document.getElementById('npName').value.trim(), description: document.getElementById('npDesc').value.trim(), due_date: document.getElementById('npDue').value, route: routeSteps };
+  if (!name) return alert('Informe o nome do projeto.');
+  if (!due_date) return alert('Informe o prazo.');
+  if (!npSelectedSections.length) return alert('Selecione pelo menos uma seção para o projeto.');
+  const items = npItems.map(it => ({
+    name: it.name.trim(),
+    quantity: Math.max(1, Number(it.quantity) || 1),
+    ordered: !!it.ordered,
+    tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
+  })).filter(it => it.name);
+  for (const it of items) {
+    if (!it.tasks.length) return alert('O item "' + it.name + '" precisa de pelo menos uma tarefa com seção.');
   }
   try {
-    const { id } = await api('/api/projects', { method: 'POST', body: JSON.stringify(body) });
+    const { id } = await api('/api/projects', { method: 'POST', body: JSON.stringify({
+      client_name, name, due_date,
+      description: document.getElementById('npDesc').value.trim(),
+      location_id: currentLocId,
+      section_ids: npSelectedSections,
+      items
+    })});
     const files = document.getElementById('npFiles').files;
     if (files.length) {
       const fd = new FormData();

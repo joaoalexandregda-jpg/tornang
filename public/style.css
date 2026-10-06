@@ -734,3 +734,36 @@ body > .tabs ~ .panel {
 /* ===== v4.6 — Popup de detalhe maior ===== */
 .modal { max-width: 860px !important; width: 92vw; }
 .modal-body { max-height: 70vh; overflow-y: auto; }
+
+/* ===== Modal grande: v5.1 ===== */
+.modal {
+  width: min(90vw, 1000px);
+  height: 90vh;
+  display: flex;
+  flex-direction: column;
+}
+.modal-body { flex: 1; overflow-y: auto; }
+@media (max-width: 768px) {
+  .modal { width: 100vw; height: 100vh; border-radius: 0; }
+}
+/* Bolhas de seção */
+.bubble-row { display: flex; flex-wrap: wrap; gap: 8px; margin: 8px 0 4px; }
+.bubble {
+  border: 1.5px solid #cbd5e1; background: #fff; color: #334155;
+  border-radius: 999px; padding: 8px 16px; cursor: pointer;
+  font-size: 14px; font-weight: 600; transition: all .15s;
+}
+.bubble span { font-weight: 800; margin-left: 4px; }
+.bubble.on { background: #0d9488; border-color: #0d9488; color: #fff; }
+/* Grid compacto para os campos de cima */
+.grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+@media (max-width: 600px) { .grid2 { grid-template-columns: 1fr; } }
+/* Dropzone de documentos — sem bordas visíveis */
+.dropzone {
+  background: rgba(13,148,136,.06); border-radius: 12px; height: 96px;
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  cursor: pointer; font-size: 26px; transition: background .15s;
+}
+.dropzone p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
+.dropzone.drag { background: rgba(13,148,136,.16); }
+.hint { font-size: 12px; color: #64748b; margin: 2px 0 6px; }
