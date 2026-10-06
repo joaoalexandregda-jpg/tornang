@@ -502,7 +502,7 @@ async function showHistory(id) {
     api('/api/projects/' + id + '/history'),
     api('/api/projects/' + id + '/detail')
   ]);
-  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada' };
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída' };
   // Timeline estilo rastreamento: pontos ligados por linha
   let timeline = '';
   if (detail.route && detail.route.length) {
@@ -529,8 +529,23 @@ async function showHistory(id) {
   openModal('Histórico — ' + projectLabel(data.project), `
     ${timeline ? `<div class="timeline">${timeline}</div>` : ''}
     <table><thead><tr><th>Data</th><th>Seção</th><th>Quem</th><th>Ação</th></tr></thead><tbody>${rows}</tbody></table>`,
-    '', `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
+    `<button class="btn ghost small" onclick="downloadHistory(${id})">⬇️ Baixar histórico</button>`,
+    `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
 }
+
+async function downloadHistory(id) {
+  try {
+    const res = await fetch('/api/projects/' + id + '/history/download', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) return alert('Erro ao gerar o histórico.');
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'historico-' + id + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) { alert(err.message); }
+}
+
 // ===== Anotações da equipe =====
 const noteIcons = { 'Problema mecânico': '🔧', 'Falta de material': '📦', 'Aguardando cliente': '⏳', 'Alerta geral': '⚠️', 'Emergência médica': '🚑', 'Incêndio': '🔥' };
 async function showNotes(id) {

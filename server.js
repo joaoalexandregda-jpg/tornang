@@ -446,6 +446,50 @@ app.get('/api/projects/:id/history', auth, (req, res) => {
     ORDER BY h.created_at ASC`).all(p.id);
   res.json({ project: p, history });
 });
+
+app.get('/api/projects/:id/history/download', auth, (req, res) => {
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+
+  const events = db.prepare(`
+    SELECT h.created_at, h.action, h.notes, s.name AS section_name, u.name AS worker_name
+    FROM project_history h
+    LEFT JOIN sections s ON s.id = h.section_id
+    LEFT JOIN users u ON u.id = h.worker_id
+    WHERE h.project_id = ? ORDER BY h.created_at`).all(p.id);
+
+  const notes = db.prepare(`
+    SELECT n.created_at, n.note, n.is_alert, n.alert_type, n.author_name, s.name AS section_name
+    FROM project_notes n LEFT JOIN sections s ON s.id = n.section_id
+    WHERE n.project_id = ? ORDER BY n.created_at`).all(p.id);
+
+  const tasks = db.prepare(`
+    SELECT i.name AS item_name, i.quantity, t.name AS task_name, s.name AS section_name, t.status, t.task_order,
+      u.name AS assigned_name, dw.name AS done_by_name, t.done_at
+    FROM project_tasks t
+    JOIN project_items i ON i.id = t.item_id
+    JOIN sections s ON s.id = t.section_id
+    LEFT JOIN users u ON u.id = t.assigned_to
+    LEFT JOIN users dw ON dw.id = t.done_by
+    WHERE i.project_id = ? ORDER BY i.position, t.task_order IS NULL, t.task_order, t.id`).all(p.id);
+
+  const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída' };
+  let csv = '\uFEFF'; // BOM: Excel abre com acentos corretos
+  csv += 'HISTORICO — ' + (p.name ? p.client_name + ' — ' + p.name : p.client_name) + '\n';
+  csv += 'Status atual:,' + q(p.status) + '\n\n';
+  csv += '=== EVENTOS ===\nData,Evento,Seção,Quem,Detalhes\n';
+  for (const h of events) csv += [h.created_at, labels[h.action] || h.action, h.section_name || '', h.worker_name || '', h.notes || ''].map(q).join(',') + '\n';
+  csv += '\n=== ITENS E TAREFAS ===\nItem,Qtd,Tarefa,Seção,Ordem,Status,Atribuída a,Concluída por,Concluída em\n';
+  for (const t of tasks) csv += [t.item_name, t.quantity, t.task_name, t.section_name, t.task_order ?? '', t.status, t.assigned_name || '', t.done_by_name || '', t.done_at || ''].map(q).join(',') + '\n';
+  csv += '\n=== ANOTAÇÕES E PROBLEMAS ===\nData,Autor,Seção,Tipo,Texto\n';
+  for (const n of notes) csv += [n.created_at, n.author_name || '', n.section_name || '', n.is_alert ? (n.alert_type || 'Alerta') : 'Anotação', n.note].map(q).join(',') + '\n';
+
+  res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+  res.setHeader('Content-Disposition', 'attachment; filename="historico-' + p.id + '.csv"');
+  res.send(csv);
+});
+
 // ---------- Fila do trabalhador ----------
 app.get('/api/worker/queue', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
