@@ -458,7 +458,7 @@ async function openDetail(id) {
       <input type="file" id="detailFiles" multiple hidden>
     </div>`,
         `${p.status === 'pending_release' ? `<button class="btn primary small" onclick="releaseProject(${p.id})">Liberar para produção</button> ` : ''}${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ${p.priority ? 'ghost' : 'primary'} small" onclick="togglePriority(${p.id})">${p.priority ? 'Remover urgência' : '⚠️ Urgente'}</button>` : ''}`,
-        `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')">📦 No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')">🚚 Entregue</button>` : ''}${p.status !== 'completed' ? `<button class="btn ghost small" onclick="openRouteEditor(${p.id})">Editar rota</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>${p.archived ? `<button class="btn ghost small" onclick="unarchiveProject(${p.id})">↩️ Restaurar</button>` : `<button class="btn ghost small" onclick="archiveProject(${p.id})">🗄️ Arquivar</button>`}<button class="btn ghost small" onclick="deleteProject(${p.id})">🗑️ Excluir</button>`);
+        `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')">📦 No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')">🚚 Entregue</button>` : ''}${p.status !== 'completed' ? `<button class="btn ghost small" onclick="openRouteEditor(${p.id})">Editar rota</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="openAddItems(${p.id})">➕ Adicionar itens</button>` : ''}${p.archived ? `<button class="btn ghost small" onclick="unarchiveProject(${p.id})">↩️ Restaurar</button>` : `<button class="btn ghost small" onclick="archiveProject(${p.id})">🗄️ Arquivar</button>`}<button class="btn ghost small" onclick="deleteProject(${p.id})">🗑️ Excluir</button>`);
   // Dropzone: clique ou arrastar
   const dz = document.getElementById('dropzone');
   const input = document.getElementById('detailFiles');
@@ -527,6 +527,36 @@ async function deleteProject(id) {
   catch (err) { alert(err.message); }
 }
 
+async function openAddItems(id) {
+  const { project: p, sections } = await api('/api/projects/' + id + '/detail');
+  sectionsCache = sections;
+  npItems = [];
+  openModal('Adicionar itens — ' + projectLabel(p), `
+    <p class="hint">Cada item é uma parte do projeto (ex.: 30 placas de saída). Adicione as tarefas na ordem em que acontecem.</p>
+    <div id="npItemsList"></div>
+    <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>`,
+    `<button class="btn primary" onclick="saveNewItems(${id})">Salvar itens</button>`,
+    `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
+  renderItemsBuilder();
+}
+async function saveNewItems(id) {
+  const items = npItems.map(it => ({
+    name: it.name.trim(),
+    quantity: Math.max(1, Number(it.quantity) || 1),
+    ordered: !!it.ordered,
+    tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
+  })).filter(it => it.name);
+  if (!items.length) return alert('Adicione pelo menos um item.');
+  for (const it of items) {
+    if (!it.tasks.length) return alert('O item "' + it.name + '" precisa de pelo menos uma tarefa com seção.');
+  }
+  try {
+    await api('/api/projects/' + id + '/items', { method: 'POST', body: JSON.stringify({ items }) });
+    document.getElementById('modal').classList.add('hidden');
+    openDetail(id); loadProjects();
+  } catch (err) { alert(err.message); }
+}
+
 async function openRouteEditor(id) {
   const { project: p, sections, route } = await api('/api/projects/' + id + '/detail');
   if (p.status === 'completed') return alert('Esta folha já está concluída — a rota não pode mais ser editada.');
@@ -556,7 +586,7 @@ async function showHistory(id) {
     api('/api/projects/' + id + '/history'),
     api('/api/projects/' + id + '/detail')
   ]);
-  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada' };
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados' };
   // Timeline estilo rastreamento: pontos ligados por linha
   let timeline = '';
   if (detail.route && detail.route.length) {

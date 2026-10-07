@@ -474,7 +474,7 @@ app.get('/api/projects/:id/history/download', auth, (req, res) => {
     WHERE i.project_id = ? ORDER BY i.position, t.task_order IS NULL, t.task_order, t.id`).all(p.id);
 
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada' };
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados' };
   let csv = '\uFEFF'; // BOM: Excel abre com acentos corretos
   csv += 'HISTORICO — ' + (p.name ? p.client_name + ' — ' + p.name : p.client_name) + '\n';
   csv += 'Status atual:,' + q(p.status) + '\n\n';
@@ -942,31 +942,7 @@ app.post('/api/projects/:id/release', auth, managerOnly, (req, res) => {
   tx();
   res.json({ ok: true });
 });
-// ---------- v4.6.1: Excluir folha (apenas antes de entrar em produção) ----------
-app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
-  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
-  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
-  const started = db.prepare(`
-    SELECT COUNT(*) c FROM project_route
-    WHERE project_id = ? AND (status = 'done' OR assigned_to IS NOT NULL)`).get(p.id).c;
-  if (started > 0) {
-    return res.status(400).json({ error: 'Esta folha já está em produção — algum trabalhador já assumiu ou concluiu uma etapa. Ela não pode mais ser excluída.' });
-  }
-  const tx = db.transaction(() => {
-    const docs = db.prepare('SELECT stored_name FROM project_documents WHERE project_id = ?').all(p.id);
-    for (const d of docs) { try { fs.unlinkSync(path.join(uploadDir, d.stored_name)); } catch (e) {} }
-    db.prepare('DELETE FROM project_documents WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM project_route WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM project_history WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM project_notes WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM project_collaborators WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM join_requests WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM notifications WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
-  });
-  tx();
-  res.json({ ok: true });
-});
+
 // ---------- Editar a rota durante a produção ----------
 app.put('/api/projects/:id/route', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
@@ -1021,6 +997,49 @@ app.post('/api/company/logo', auth, managerOnly, ownerOnly, upload.single('logo'
   const updated = db.prepare('SELECT * FROM companies WHERE id = ?').get(req.user.company_id);
   res.json({ ok: true, company: updated });
 });
+
+// ---------- v5.3: Adicionar itens a uma folha existente ----------
+app.post('/api/projects/:id/items', auth, managerOnly, (req, res) => {
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+  if (['completed', 'at_warehouse', 'delivered'].includes(p.status)) return res.status(400).json({ error: 'Esta folha já está concluída.' });
+  const raw = Array.isArray(req.body && req.body.items) ? req.body.items : [];
+  const cleanItems = raw.map(it => ({
+    name: String(it.name || '').trim(),
+    quantity: Math.max(1, Number(it.quantity) || 1),
+    ordered: !!it.ordered,
+    tasks: (Array.isArray(it.tasks) ? it.tasks : [])
+      .map(t => ({ name: String(t.name || '').trim(), section_id: Number(t.section_id) || null }))
+      .filter(t => t.name && t.section_id)
+  })).filter(it => it.name && it.tasks.length);
+  if (!cleanItems.length) return res.status(400).json({ error: 'Adicione pelo menos um item com tarefas.' });
+  const validIds = new Set(db.prepare('SELECT id FROM sections WHERE company_id = ?').all(req.user.company_id).map(s => s.id));
+  for (const it of cleanItems) for (const t of it.tasks) {
+    if (!validIds.has(t.section_id)) return res.status(400).json({ error: 'Seção inválida em uma das tarefas.' });
+  }
+
+  const tx = db.transaction(() => {
+    const start = db.prepare('SELECT COALESCE(MAX(position),0) m FROM project_items WHERE project_id = ?').get(p.id).m;
+    const insItem = db.prepare('INSERT INTO project_items (project_id, name, quantity, ordered, status, position) VALUES (?,?,?,?,?,?)');
+    const insTask = db.prepare('INSERT INTO project_tasks (item_id, section_id, name, task_order, status) VALUES (?,?,?,?,?)');
+    cleanItems.forEach((it, idx) => {
+      const info = insItem.run(p.id, it.name, it.quantity, it.ordered ? 1 : 0, 'in_progress', start + idx + 1);
+      const itemId = info.lastInsertRowid;
+      it.tasks.forEach((t, ti) => insTask.run(itemId, t.section_id, t.name, ti + 1, it.ordered ? (ti === 0 ? 'active' : 'pending') : 'active'));
+    });
+    // Folha criada sem itens: aponta para a primeira tarefa ativa
+    if (!p.current_section_id) {
+      const first = db.prepare(`SELECT t.section_id FROM project_tasks t JOIN project_items i ON i.id = t.item_id
+        WHERE i.project_id = ? AND t.status = 'active' ORDER BY i.position, t.task_order LIMIT 1`).get(p.id);
+      db.prepare('UPDATE projects SET current_section_id = ? WHERE id = ?').run(first ? first.section_id : null, p.id);
+    }
+    db.prepare('INSERT INTO project_history (project_id, action, notes) VALUES (?,?,?)')
+      .run(p.id, 'items_added', cleanItems.map(i => i.name).join(', '));
+  });
+  tx();
+  res.json({ ok: true });
+});
+
 app.get('/api/projects/:id/detail', auth, (req, res) => {
   const p = db.prepare(`
     SELECT p.*, s.name AS section_name, u.name AS worker_name
