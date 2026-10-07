@@ -358,7 +358,7 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
   const { sections } = await api('/api/sections' + (currentLocId ? '?loc=' + currentLocId : ''));
   if (!sections.length) return alert('Crie pelo menos uma seção antes de abrir folhas.');
   sectionsCache = sections;
-  npSectionOptions = sections.filter(s => npSelectedSections.includes(s.id));
+  npSectionOptions = sections;
   npItems = [];
   npSelectedSections = [];
   openModal('Nova folha de obra', `
