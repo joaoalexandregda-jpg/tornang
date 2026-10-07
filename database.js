@@ -335,4 +335,7 @@ CREATE TABLE IF NOT EXISTS project_tasks (
 );
 `);
 
+// Migração v5.2.0: arquivamento de folhas
+addColumn('projects', 'archived', 'archived INTEGER DEFAULT 0');
+
 module.exports = db;

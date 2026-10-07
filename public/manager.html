@@ -66,6 +66,7 @@
   <option value="delivered">🚚 Entregues</option>
 </select>
 <select id="pSectionFilter"><option value="all">Todas as seções</option></select>
+    <button class="btn ghost small" id="archivedToggle" onclick="toggleArchived()">🗄️ Ver arquivadas</button>
     <button class="btn primary" id="newProjectBtn" style="width:auto">+ Nova folha</button>
   </div>
   <div id="projectsTable"></div>
@@ -134,9 +135,15 @@ document.getElementById('modalClose').addEventListener('click', () => document.g
 function fmtDate(d) { return d ? d.split('-').reverse().join('/') : '—'; }
 function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
 // Projetos
+let showArchived = false;
+function toggleArchived() {
+  showArchived = !showArchived;
+  document.getElementById('archivedToggle').textContent = showArchived ? '← Voltar para ativas' : '🗄️ Ver arquivadas';
+  loadProjects();
+}
 async function loadProjects() {
-  const q = currentLocId ? '?loc=' + currentLocId : '';
-  const [{ projects }, { sections }] = await Promise.all([api('/api/projects' + q), api('/api/company/sections' + q)]);
+  const qs = (currentLocId ? 'loc=' + currentLocId : '') + (showArchived ? (currentLocId ? '&' : '') + 'archived=1' : '');
+  const [{ projects }, { sections }] = await Promise.all([api('/api/projects' + (qs ? '?' + qs : '')), api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : ''))]);
   projectsCache = projects;
   sectionsCache = sections;
   const sel = document.getElementById('pSectionFilter');
@@ -451,7 +458,7 @@ async function openDetail(id) {
       <input type="file" id="detailFiles" multiple hidden>
     </div>`,
         `${p.status === 'pending_release' ? `<button class="btn primary small" onclick="releaseProject(${p.id})">Liberar para produção</button> ` : ''}${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ${p.priority ? 'ghost' : 'primary'} small" onclick="togglePriority(${p.id})">${p.priority ? 'Remover urgência' : '⚠️ Urgente'}</button>` : ''}`,
-      `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')">📦 No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')">🚚 Entregue</button>` : ''}${p.status !== 'completed' ? `<button class="btn ghost small" onclick="openRouteEditor(${p.id})">Editar rota</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>`);
+        `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')">📦 No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')">🚚 Entregue</button>` : ''}${p.status !== 'completed' ? `<button class="btn ghost small" onclick="openRouteEditor(${p.id})">Editar rota</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>${p.archived ? `<button class="btn ghost small" onclick="unarchiveProject(${p.id})">↩️ Restaurar</button>` : `<button class="btn ghost small" onclick="archiveProject(${p.id})">🗄️ Arquivar</button>`}<button class="btn ghost small" onclick="deleteProject(${p.id})">🗑️ Excluir</button>`);
   // Dropzone: clique ou arrastar
   const dz = document.getElementById('dropzone');
   const input = document.getElementById('detailFiles');
@@ -505,6 +512,21 @@ async function setDestination(id, destination) {
   try { await api('/api/projects/' + id + '/destination', { method: 'PUT', body: JSON.stringify({ destination }) }); openDetail(id); loadProjects(); }
   catch (err) { alert(err.message); }
 }
+
+async function archiveProject(id) {
+  try { await api('/api/projects/' + id + '/archive', { method: 'POST' }); document.getElementById('modal').classList.add('hidden'); loadProjects(); }
+  catch (err) { alert(err.message); }
+}
+async function unarchiveProject(id) {
+  try { await api('/api/projects/' + id + '/unarchive', { method: 'POST' }); openDetail(id); loadProjects(); }
+  catch (err) { alert(err.message); }
+}
+async function deleteProject(id) {
+  if (!confirm('Excluir esta folha para sempre? Os arquivos enviados vão para a pasta de excluídos no servidor, mas o histórico será apagado.')) return;
+  try { await api('/api/projects/' + id, { method: 'DELETE' }); document.getElementById('modal').classList.add('hidden'); loadProjects(); }
+  catch (err) { alert(err.message); }
+}
+
 async function openRouteEditor(id) {
   const { project: p, sections, route } = await api('/api/projects/' + id + '/detail');
   if (p.status === 'completed') return alert('Esta folha já está concluída — a rota não pode mais ser editada.');
@@ -534,7 +556,7 @@ async function showHistory(id) {
     api('/api/projects/' + id + '/history'),
     api('/api/projects/' + id + '/detail')
   ]);
-  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída' };
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada' };
   // Timeline estilo rastreamento: pontos ligados por linha
   let timeline = '';
   if (detail.route && detail.route.length) {

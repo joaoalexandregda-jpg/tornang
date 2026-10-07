@@ -350,11 +350,11 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
     FROM projects p
     LEFT JOIN sections s ON s.id = p.current_section_id
     LEFT JOIN users u ON u.id = p.assigned_to
-    WHERE p.company_id = ? ${loc ? 'AND p.location_id = ?' : ''}
+    WHERE p.company_id = ? AND p.archived = ? ${loc ? 'AND p.location_id = ?' : ''}
     ORDER BY p.priority DESC,
       CASE WHEN p.status = 'completed' THEN 1 ELSE 0 END,
       CASE WHEN p.due_date IS NULL OR p.due_date = '' THEN 1 ELSE 0 END,
-      p.due_date ASC, p.created_at DESC`).all(...(loc ? [req.user.company_id, loc] : [req.user.company_id]));
+      p.due_date ASC, p.created_at DESC`).all(...(loc ? [req.user.company_id, req.query.archived === '1' ? 1 : 0, loc] : [req.user.company_id, req.query.archived === '1' ? 1 : 0]));
   res.json({ projects });
 });
 app.post('/api/projects', auth, managerOnly, (req, res) => {
@@ -474,7 +474,7 @@ app.get('/api/projects/:id/history/download', auth, (req, res) => {
     WHERE i.project_id = ? ORDER BY i.position, t.task_order IS NULL, t.task_order, t.id`).all(p.id);
 
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída' };
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada' };
   let csv = '\uFEFF'; // BOM: Excel abre com acentos corretos
   csv += 'HISTORICO — ' + (p.name ? p.client_name + ' — ' + p.name : p.client_name) + '\n';
   csv += 'Status atual:,' + q(p.status) + '\n\n';
@@ -501,7 +501,7 @@ app.get('/api/worker/queue', auth, (req, res) => {
     FROM project_route r
     JOIN projects p ON p.id = r.project_id
     JOIN sections s ON s.id = r.section_id
-    WHERE p.company_id = ? AND p.status = 'in_progress' AND r.section_id = ? AND r.status = 'active'
+    WHERE p.company_id = ? AND p.status = 'in_progress' AND p.archived = 0 AND r.section_id = ? AND r.status = 'active'
     ORDER BY p.priority DESC, p.due_date ASC, p.created_at DESC`).all(req.user.company_id, req.user.section_id);
   const collabIds = db.prepare('SELECT project_id FROM project_collaborators WHERE user_id = ?').all(req.user.id).map(r => r.project_id);
   const available = [];
@@ -522,7 +522,7 @@ app.get('/api/worker/queue', auth, (req, res) => {
     JOIN project_items i ON i.id = t.item_id
     JOIN projects p ON p.id = i.project_id
     JOIN sections s ON s.id = t.section_id
-    WHERE p.company_id = ? AND p.status = 'in_progress' AND t.section_id = ? AND t.status = 'active'
+    WHERE p.company_id = ? AND p.status = 'in_progress' AND t.section_id = ? AND t.status = 'active' AND p.archived = 0
     ORDER BY p.priority DESC, p.due_date ASC, p.created_at DESC`).all(req.user.company_id, req.user.section_id);
   for (const row of taskRows) {
     const item = { ...row, type: 'task', is_ordered: !!row.ordered };
@@ -875,6 +875,59 @@ app.post('/api/projects/:id/priority', auth, managerOnly, (req, res) => {
   db.prepare('UPDATE projects SET priority = ? WHERE id = ?').run(priority, p.id);
   res.json({ ok: true, priority });
 });
+
+// ---------- Arquivar / desarquivar folha (registra quem fez) ----------
+app.post('/api/projects/:id/archive', auth, managerOnly, (req, res) => {
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+  db.prepare('UPDATE projects SET archived = 1 WHERE id = ?').run(p.id);
+  db.prepare('INSERT INTO project_history (project_id, section_id, action, worker_id) VALUES (?,?,?,?)')
+    .run(p.id, p.current_section_id, 'archived', req.user.id);
+  res.json({ ok: true });
+});
+
+app.post('/api/projects/:id/unarchive', auth, managerOnly, (req, res) => {
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+  db.prepare('UPDATE projects SET archived = 0 WHERE id = ?').run(p.id);
+  db.prepare('INSERT INTO project_history (project_id, section_id, action, worker_id) VALUES (?,?,?,?)')
+    .run(p.id, p.current_section_id, 'unarchived', req.user.id);
+  res.json({ ok: true });
+});
+
+// ---------- Excluir folha (arquivos vão para uploads/deleted/) ----------
+app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
+  const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
+  if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
+
+  const trashDir = path.join(uploadDir, 'deleted');
+  try { fs.mkdirSync(trashDir, { recursive: true }); } catch (e) {}
+  const docs = db.prepare('SELECT * FROM project_documents WHERE project_id = ?').all(p.id);
+  for (const d of docs) {
+    const from = path.join(uploadDir, d.stored_name);
+    if (fs.existsSync(from)) {
+      let dest = path.join(trashDir, d.stored_name);
+      if (fs.existsSync(dest)) dest = path.join(trashDir, Date.now() + '-' + d.stored_name);
+      try { fs.renameSync(from, dest); }
+      catch (e) { try { fs.copyFileSync(from, dest); fs.unlinkSync(from); } catch (e2) {} }
+    }
+  }
+
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM project_tasks WHERE item_id IN (SELECT id FROM project_items WHERE project_id = ?)').run(p.id);
+    db.prepare('DELETE FROM project_items WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_route WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_notes WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_history WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_collaborators WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM join_requests WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_documents WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
+  });
+  tx();
+  res.json({ ok: true });
+});
+
 // ---------- Liberação manual da folha ----------
 app.post('/api/projects/:id/release', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
