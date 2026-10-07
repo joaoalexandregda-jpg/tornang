@@ -358,6 +358,7 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
   const { sections } = await api('/api/sections' + (currentLocId ? '?loc=' + currentLocId : ''));
   if (!sections.length) return alert('Crie pelo menos uma seção antes de abrir folhas.');
   sectionsCache = sections;
+  npSectionOptions = sections.filter(s => npSelectedSections.includes(s.id));
   npItems = [];
   npSelectedSections = [];
   openModal('Nova folha de obra', `
@@ -530,6 +531,7 @@ async function deleteProject(id) {
 async function openAddItems(id) {
   const { project: p, sections } = await api('/api/projects/' + id + '/detail');
   sectionsCache = sections;
+  npSectionOptions = sections;
   npItems = [];
   openModal('Adicionar itens — ' + projectLabel(p), `
     <p class="hint">Cada item é uma parte do projeto (ex.: 30 placas de saída). Adicione as tarefas na ordem em que acontecem.</p>
