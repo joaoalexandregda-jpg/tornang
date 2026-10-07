@@ -346,7 +346,9 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
     SELECT p.*, s.name AS section_name, u.name AS worker_name,
       (SELECT COUNT(*) FROM project_documents d WHERE d.project_id = p.id) AS doc_count,
       (SELECT GROUP_CONCAT(r.section_id) FROM project_route r WHERE r.project_id = p.id) AS route_ids,
-      (SELECT COUNT(*) FROM project_route r WHERE r.project_id = p.id AND r.status = 'active' AND r.assigned_to IS NULL) AS awaiting
+      (SELECT COUNT(*) FROM project_route r WHERE r.project_id = p.id AND r.status = 'active' AND r.assigned_to IS NULL) AS awaiting,
+      (SELECT COUNT(*) FROM project_tasks t JOIN project_items i ON i.id = t.item_id WHERE i.project_id = p.id) AS total_tasks,
+      (SELECT COUNT(*) FROM project_tasks t JOIN project_items i ON i.id = t.item_id WHERE i.project_id = p.id AND t.status = 'done') AS done_tasks
     FROM projects p
     LEFT JOIN sections s ON s.id = p.current_section_id
     LEFT JOIN users u ON u.id = p.assigned_to

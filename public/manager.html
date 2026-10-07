@@ -55,19 +55,17 @@
   <button class="tab" data-tab="sections">Seções</button>
 </div>
 <div id="panel-projects" class="panel">
-  <div class="toolbar">
-    <input id="pSearch" placeholder="Buscar cliente ou projeto...">
-    <select id="pStatusFilter">
-  <option value="all">Todos os status</option>
-  <option value="in_progress">Em produção</option>
-  <option value="pending_release">Aguardando liberação</option>
-  <option value="completed">Concluídas</option>
-  <option value="at_warehouse">📦 No armazém</option>
-  <option value="delivered">🚚 Entregues</option>
-</select>
-<select id="pSectionFilter"><option value="all">Todas as seções</option></select>
-    <button class="btn ghost small" id="archivedToggle" onclick="toggleArchived()">🗄️ Ver arquivadas</button>
-    <button class="btn primary" id="newProjectBtn" style="width:auto">+ Nova folha</button>
+  <div class="toolbar" style="justify-content:space-between">
+    <input id="pSearch" placeholder="Buscar cliente ou projeto..." style="max-width:260px">
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <div class="pillbar" id="projFilter">
+        <button data-f="all" class="on">Todas</button>
+        <button data-f="active">Ativas</button>
+        <button data-f="completed">Concluídas</button>
+        <button data-f="archived">Arquivadas</button>
+      </div>
+      <button class="btn primary" id="newProjectBtn" style="width:auto">+ Nova folha</button>
+    </div>
   </div>
   <div id="projectsTable"></div>
 </div>
@@ -87,6 +85,17 @@
   </div>
   <div id="sectionsList"></div>
 </div>
+<div id="drawerBackdrop" class="drawer-backdrop hidden" onclick="closeDrawer()"></div>
+<aside id="drawer" class="drawer hidden">
+  <div class="drawer-head">
+    <div>
+      <p style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.14em;color:#A1A5B0">Visão da folha</p>
+      <p id="drawerSub" style="margin-top:4px;font-size:12px;font-weight:600;color:#5E6372"></p>
+    </div>
+    <button class="btn ghost small" onclick="closeDrawer()">✕</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</aside>
 <div id="modal" class="modal-backdrop hidden">
   <div class="modal">
     <div class="modal-head">
@@ -135,14 +144,14 @@ document.getElementById('modalClose').addEventListener('click', () => document.g
 function fmtDate(d) { return d ? d.split('-').reverse().join('/') : '—'; }
 function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
 // Projetos
-let showArchived = false;
-function toggleArchived() {
-  showArchived = !showArchived;
-  document.getElementById('archivedToggle').textContent = showArchived ? '← Voltar para ativas' : '🗄️ Ver arquivadas';
+let projFilter = 'all';
+document.querySelectorAll('#projFilter button').forEach(b => b.addEventListener('click', () => {
+  projFilter = b.dataset.f;
+  document.querySelectorAll('#projFilter button').forEach(x => x.classList.toggle('on', x === b));
   loadProjects();
-}
+}));
 async function loadProjects() {
-  const qs = (currentLocId ? 'loc=' + currentLocId : '') + (showArchived ? (currentLocId ? '&' : '') + 'archived=1' : '');
+  const qs = (currentLocId ? 'loc=' + currentLocId + '&' : '') + 'archived=' + (projFilter === 'archived' ? '1' : '0');
   const [{ projects }, { sections }] = await Promise.all([api('/api/projects' + (qs ? '?' + qs : '')), api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : ''))]);
   projectsCache = projects;
   sectionsCache = sections;
@@ -153,41 +162,52 @@ async function loadProjects() {
   renderProjects();
 }
 let projectsCache = [];
+function ringSvg(done, total, size = 48) {
+  const pct = total ? Math.round(done / total * 100) : 0;
+  const r = 18, c = 2 * Math.PI * r;
+  const off = c - (pct / 100) * c;
+  const color = pct >= 100 ? '#1F9D72' : '#3859F6';
+  return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 44 44" width="${size}" height="${size}">
+    <circle cx="22" cy="22" r="${r}" fill="none" stroke="#E9EBF1" stroke-width="4"/>
+    <circle cx="22" cy="22" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/>
+  </svg><span>${pct}%</span></div>`;
+}
+function projStatus(p) {
+  if (['completed', 'at_warehouse', 'delivered'].includes(p.status)) return { label: 'Concluída', color: '#1F9D72', soft: '#E8F8F2' };
+  const today = new Date().toISOString().slice(0, 10);
+  if (p.due_date && p.due_date < today) return { label: 'Atrasada', color: '#E7793B', soft: '#FFF1E8' };
+  return { label: 'No prazo', color: '#3859F6', soft: '#EEF1FF' };
+}
 function renderProjects() {
-const today = new Date().toISOString().split('T')[0];
-const term = document.getElementById('pSearch').value.toLowerCase().trim();
-const secF = document.getElementById('pSectionFilter').value;
-const stF = document.getElementById('pStatusFilter').value;
-const list = projectsCache.filter(p => {
-  if (term && !((p.client_name || '').toLowerCase().includes(term) || (p.name || '').toLowerCase().includes(term))) return false;
-  if (stF === 'completed' && !['completed', 'at_warehouse', 'delivered'].includes(p.status)) return false;
-  if (stF !== 'all' && stF !== 'completed' && p.status !== stF) return false;
-  if (secF !== 'all' && !String(p.route_ids || '').split(',').includes(secF)) return false;
-  return true;
-});
-// e use `list` no lugar de projectsCache ao montar a tabela
+  const search = document.getElementById('pSearch').value.toLowerCase();
+  const secF = document.getElementById('pSectionFilter') ? document.getElementById('pSectionFilter').value : 'all';
+  const list = projectsCache.filter(p =>
+    (!search || (p.client_name + ' ' + (p.name || '')).toLowerCase().includes(search)) &&
+    (!secF || secF === 'all' || p.current_section_id == secF) &&
+    (projFilter === 'all' ||
+      (projFilter === 'archived' ? p.archived :
+       projFilter === 'completed' ? ['completed', 'at_warehouse', 'delivered'].includes(p.status)
+       : !['completed', 'at_warehouse', 'delivered'].includes(p.status))));
   const el = document.getElementById('projectsTable');
   if (!list.length) { el.innerHTML = '<p class="empty">Nenhuma folha encontrada.</p>'; return; }
-const statusInfo = p => p.status === 'completed' ? { cls: 'green', label: 'Concluída' }
-  : p.status === 'at_warehouse' ? { cls: 'blue', label: '📦 No armazém' }
-  : p.status === 'delivered' ? { cls: 'green', label: '🚚 Entregue' }
-  : p.status === 'pending_release' ? { cls: 'gray', label: 'Aguardando liberação' }
-  : { cls: 'orange', label: 'Em produção' };
-  el.innerHTML = `<table><thead><tr><th></th><th>Cliente</th><th>Projeto</th><th>Status</th><th>Seção atual</th><th>Prazo</th><th>Documentos</th><th></th></tr></thead><tbody>` +
-    list.map(p => {
-      const st = statusInfo(p);
-      const overdue = p.status !== 'completed' && p.due_date && p.due_date < today;
-      return `<tr class="row-click ${p.priority ? 'urgent-row' : ''}" onclick="openDetail(${p.id})">
-        <td>${p.priority ? '⚠️' : ''}</td>
-        <td><b>${esc(p.client_name)}</b>${p.description ? `<br><small class="muted">${esc(p.description)}</small>` : ''}</td>
-        <td>${p.name ? `<span class="badge blue">${esc(p.name)}</span>` : '—'}</td>
-        <td><span class="badge ${st.cls}">${st.label}</span>${p.status === 'in_progress' && p.awaiting > 0 ? ' <span class="badge orange">⏳ Ninguém aceitou</span>' : ''}</td>
-        <td>${p.status === 'in_progress' ? `<span class="badge blue">${esc(p.section_name || '—')}</span>` : '—'}</td>
-        <td class="${overdue ? 'date-overdue' : ''}">${p.due_date ? esc(p.due_date.split('-').reverse().join('/')) : '—'}</td>
-      <td>${p.doc_count} ${p.doc_count === 1 ? 'arquivo' : 'arquivos'}</td>
-        <td><button class="icon-btn danger" title="Excluir folha" onclick="event.stopPropagation(); deleteProject(${p.id})">🗑</button></td>
-      </tr>`;
-    }).join('') + '</tbody></table>';
+  el.innerHTML = '<div class="projlist">' + list.map(p => {
+    const st = projStatus(p);
+    return `<button class="projrow" onclick="openOverview(${p.id})">
+      ${ringSvg(p.done_tasks, p.total_tasks)}
+      <div style="min-width:0;flex:1">
+        <p style="font-size:13px;font-weight:700;color:#292E3E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.priority ? '⚠️ ' : ''}${esc(projectLabel(p))}</p>
+        <div style="margin-top:6px;display:flex;align-items:center;gap:8px;font-size:10px;font-weight:500;color:#989CA9">
+          <span class="badge" style="background:${st.soft};color:${st.color};font-size:9px">${st.label}</span>
+          ${p.section_name && !['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<span>${esc(p.section_name)}</span>` : ''}
+        </div>
+      </div>
+      <div style="text-align:right">
+        <p style="font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:#B0B3BD">Prazo</p>
+        <p style="margin-top:4px;font-size:11px;font-weight:700;color:#5B6070">${p.due_date ? fmtDate(p.due_date) : '—'}</p>
+      </div>
+      <span style="color:#A7AAB4">→</span>
+    </button>`;
+  }).join('') + '</div>';
 }
 document.getElementById('pSearch').addEventListener('input', renderProjects);
 document.getElementById('pStatusFilter').addEventListener('change', renderProjects);
@@ -360,7 +380,6 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
   sectionsCache = sections;
   npSectionOptions = sections;
   npItems = [];
-  npSelectedSections = [];
   openModal('Nova folha de obra', `
     <div class="modal-scroll">
       <div class="grid2">
@@ -371,9 +390,6 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
         <label>Prazo *<input type="date" id="npDue"></label>
         <label>Descrição (opcional)<input type="text" id="npDesc"></label>
       </div>
-      <h3 style="font-size:14px;margin:14px 0 2px">Seções do projeto *</h3>
-      <p class="hint">Toque em + para incluir a seção neste projeto.</p>
-      <div id="npSectionBubbles" class="bubble-row"></div>
       <h3 style="font-size:14px;margin:14px 0 6px">Itens e tarefas</h3>
       <p class="hint">Cada item é uma parte do projeto (ex.: 30 placas de saída). Adicione as tarefas na ordem em que acontecem.</p>
       <div id="npItemsList"></div>
@@ -383,7 +399,6 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
       <input type="file" id="npFiles" multiple hidden>
     </div>`,
     `<button class="btn primary" onclick="createProject()">Abrir folha</button>`);
-  renderSectionBubbles(sections);
   renderItemsBuilder();
   setupDropzone();
 });
@@ -394,13 +409,13 @@ async function createProject() {
   if (!client_name) return alert('Informe o cliente.');
   if (!name) return alert('Informe o nome do projeto.');
   if (!due_date) return alert('Informe o prazo.');
-  if (!npSelectedSections.length) return alert('Selecione pelo menos uma seção para o projeto.');
   const items = npItems.map(it => ({
     name: it.name.trim(),
     quantity: Math.max(1, Number(it.quantity) || 1),
     ordered: !!it.ordered,
     tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
   })).filter(it => it.name);
+  if (!items.length) return alert('Adicione pelo menos um item com tarefas.');
   for (const it of items) {
     if (!it.tasks.length) return alert('O item "' + it.name + '" precisa de pelo menos uma tarefa com seção.');
   }
@@ -409,7 +424,6 @@ async function createProject() {
       client_name, name, due_date,
       description: document.getElementById('npDesc').value.trim(),
       location_id: currentLocId,
-      section_ids: npSelectedSections,
       items
     })});
     const files = document.getElementById('npFiles').files;
@@ -423,6 +437,83 @@ async function createProject() {
     loadProjects();
   } catch (err) { alert(err.message); }
 }
+
+const HIST_LABELS = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados' };
+async function openOverview(id) {
+  const [{ project: p }, hist] = await Promise.all([
+    api('/api/projects/' + id + '/detail'),
+    api('/api/projects/' + id + '/history')
+  ]);
+  document.getElementById('drawerSub').textContent = p.client_name;
+  const tasks = (p.items || []).flatMap(it => it.tasks || []);
+  const done = tasks.filter(t => t.status === 'done').length;
+  const pct = tasks.length ? Math.round(done / tasks.length * 100) : 0;
+  const st = projStatus(p);
+  const milestones = (p.items || []).map(it => `
+    <p style="margin:14px 0 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0">${esc(it.name)}${it.quantity > 1 ? ' ×' + it.quantity : ''}</p>
+    ${(it.tasks || []).map(t => `
+      <div class="ms-row">
+        <span class="ms-check ${t.status === 'done' ? 'ms-done' : 'ms-todo'}">✓</span>
+        <span style="font-size:11px;font-weight:600;color:${t.status === 'done' ? '#656B7A' : '#A0A4B0'}">${esc(t.name)}</span>
+        ${t.assigned_name ? `<span style="margin-left:auto;font-size:9px;color:#989CA9">${esc(t.assigned_name)}</span>` : ''}
+      </div>`).join('') || '<p class="empty" style="font-size:11px">Sem tarefas neste item.</p>'}
+  `).join('');
+  const acts = (hist.history || []).slice(-4).reverse().map(h => `
+    <div style="display:flex;gap:12px;margin-bottom:14px">
+      <span class="act-dot" style="background:${st.color};box-shadow:0 0 0 4px ${st.soft}"></span>
+      <div style="min-width:0;flex:1">
+        <div style="display:flex;justify-content:space-between;gap:8px">
+          <p style="font-size:11px;font-weight:700">${HIST_LABELS[h.action] || h.action}${h.notes ? ' — ' + esc(h.notes) : ''}</p>
+          <span style="font-size:9px;font-weight:600;color:#A1A5B0">${(h.created_at || '').slice(5, 16)}</span>
+        </div>
+        <p style="margin-top:2px;font-size:10px;color:#8D92A0">${esc(h.worker_name || h.section_name || '')}</p>
+      </div>
+    </div>`).join('');
+  document.getElementById('drawerBody').innerHTML = `
+    <div style="display:flex;gap:20px;align-items:flex-start">
+      ${ringSvg(done, tasks.length, 68)}
+      <div>
+        <h2 style="font-size:21px;font-weight:800;letter-spacing:-.03em;line-height:1.2">${esc(projectLabel(p))}</h2>
+        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+          <span class="badge" style="background:${st.soft};color:${st.color}">${st.label}</span>
+          <span style="font-size:10px;font-weight:600;color:#969AA7">Prazo ${p.due_date ? fmtDate(p.due_date) : '—'}</span>
+        </div>
+      </div>
+    </div>
+    ${p.description ? `<p style="margin-top:20px;font-size:12px;line-height:1.7;color:#797E8E">${esc(p.description)}</p>` : ''}
+    <div style="margin-top:24px;background:#F6F7F9;border-radius:16px;padding:20px">
+      <div style="display:flex;justify-content:space-between;align-items:flex-end">
+        <div><p style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.12em;color:#999DA9">Conclusão</p>
+        <p style="margin-top:6px;font-size:24px;font-weight:800">${pct}%</p></div>
+        <p style="font-size:10px;font-weight:600;color:#7E8493">${done} de ${tasks.length} tarefas</p>
+      </div>
+      <div style="margin-top:14px;height:8px;border-radius:99px;background:#E3E5EA;overflow:hidden">
+        <div style="height:100%;width:${pct}%;background:${st.color};border-radius:99px"></div>
+      </div>
+    </div>
+    <div style="margin-top:24px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:12px;font-weight:800">Tarefas</h3>
+        <span style="font-size:10px;font-weight:600;color:#9CA0AC">Progresso detalhado</span>
+      </div>
+      ${milestones || '<p class="empty">Esta folha não tem itens ainda.</p>'}
+    </div>
+    <div style="margin-top:24px;border-top:1px solid #ECEEF2;padding-top:24px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+        <h3 style="font-size:12px;font-weight:800">Atividade recente</h3>
+        <button style="border:0;background:none;font-size:10px;font-weight:700;color:#3859F6;cursor:pointer" onclick="closeDrawer();showHistory(${id})">Ver histórico</button>
+      </div>
+      ${acts || '<p class="empty">Sem atividade ainda.</p>'}
+    </div>
+    <button class="btn primary" style="margin-top:24px;width:100%;justify-content:center" onclick="closeDrawer();openDetail(${id})">Abrir projeto completo →</button>`;
+  document.getElementById('drawerBackdrop').classList.remove('hidden');
+  document.getElementById('drawer').classList.remove('hidden');
+}
+function closeDrawer() {
+  document.getElementById('drawerBackdrop').classList.add('hidden');
+  document.getElementById('drawer').classList.add('hidden');
+}
+
 async function openDetail(id) {
   const { project: p, documents } = await api('/api/projects/' + id + '/detail');
   const isImg = d => (d.mime_type || '').startsWith('image/');
@@ -447,7 +538,7 @@ async function openDetail(id) {
   : p.status === 'delivered' ? '<span class="badge green">🚚 Entregue</span>'
   : p.status === 'pending_release' ? '<span class="badge gray">Aguardando liberação</span>'
   : '<span class="badge orange">Em produção</span>'}
-      ${p.status === 'in_progress' ? ` <span class="badge blue">${esc(p.section_name || '—')}</span>` : ''}
+ 
     </p>
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
       <span class="muted"><b>Cliente:</b> ${esc(p.client_name)} · <b>Prazo:</b> ${fmtDate(p.due_date)}</span>
@@ -459,7 +550,7 @@ async function openDetail(id) {
       <input type="file" id="detailFiles" multiple hidden>
     </div>`,
         `${p.status === 'pending_release' ? `<button class="btn primary small" onclick="releaseProject(${p.id})">Liberar para produção</button> ` : ''}${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ${p.priority ? 'ghost' : 'primary'} small" onclick="togglePriority(${p.id})">${p.priority ? 'Remover urgência' : '⚠️ Urgente'}</button>` : ''}`,
-        `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')">📦 No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')">🚚 Entregue</button>` : ''}${p.status !== 'completed' ? `<button class="btn ghost small" onclick="openRouteEditor(${p.id})">Editar rota</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="openAddItems(${p.id})">➕ Adicionar itens</button>` : ''}${p.archived ? `<button class="btn ghost small" onclick="unarchiveProject(${p.id})">↩️ Restaurar</button>` : `<button class="btn ghost small" onclick="archiveProject(${p.id})">🗄️ Arquivar</button>`}<button class="btn ghost small" onclick="deleteProject(${p.id})">🗑️ Excluir</button>`);
+        `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')">📦 No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')">🚚 Entregue</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="openAddItems(${p.id})">➕ Adicionar itens</button>` : ''}${p.archived ? `<button class="btn ghost small" onclick="unarchiveProject(${p.id})">↩️ Restaurar</button>` : `<button class="btn ghost small" onclick="archiveProject(${p.id})">🗄️ Arquivar</button>`}<button class="btn ghost small" onclick="deleteProject(${p.id})">🗑️ Excluir</button>`);
   // Dropzone: clique ou arrastar
   const dz = document.getElementById('dropzone');
   const input = document.getElementById('detailFiles');
@@ -611,10 +702,10 @@ async function showHistory(id) {
     }).join('');
   }
   const rows = data.history.map(h => `
-    <tr><td>${esc(h.created_at)}</td><td>${esc(h.section_name || '—')}</td><td>${esc(h.worker_name || '—')}</td><td>${labels[h.action] || h.action}</td></tr>`).join('');
+    <tr><td>${esc(h.created_at)}</td><td>${esc(h.notes || h.section_name || '—')}</td><td>${esc(h.worker_name || '—')}</td><td>${HIST_LABELS[h.action] || h.action}</td></tr>`).join('');
   openModal('Histórico — ' + projectLabel(data.project), `
     ${timeline ? `<div class="timeline">${timeline}</div>` : ''}
-    <table><thead><tr><th>Data</th><th>Seção</th><th>Quem</th><th>Ação</th></tr></thead><tbody>${rows}</tbody></table>`,
+    <table><thead><tr><th>Data</th><th>Tarefa</th><th>Quem</th><th>Ação</th></tr></thead><tbody>${rows}</tbody></table>`,
     `<button class="btn ghost small" onclick="downloadHistory(${id})">⬇️ Baixar histórico</button>`,
     `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
 }
