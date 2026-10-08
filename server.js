@@ -406,6 +406,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
       const first = db.prepare(`SELECT t.section_id FROM project_tasks t JOIN project_items i ON i.id = t.item_id
         WHERE i.project_id = ? AND t.status = 'active' ORDER BY i.position, t.task_order LIMIT 1`).get(projectId);
       db.prepare('UPDATE projects SET current_section_id = ? WHERE id = ?').run(first ? first.section_id : null, projectId);
+      db.prepare('UPDATE projects SET assigned_to = ? WHERE id = ?').run(req.user.id, projectId);
       db.prepare('INSERT INTO project_history (project_id, action) VALUES (?,?)').run(projectId, 'created');
     });
     tx();
@@ -431,6 +432,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
       const stepNo = i + 1;
       for (const sid of st) ins.run(projectId, sid, stepNo, stepNo === 1 ? 'active' : 'pending');
     });
+    db.prepare('UPDATE projects SET assigned_to = ? WHERE id = ?').run(req.user.id, projectId);
     db.prepare('INSERT INTO project_history (project_id, section_id, action) VALUES (?,?,?)').run(projectId, steps[0][0], 'created');
   });
   tx();
@@ -476,7 +478,7 @@ app.get('/api/projects/:id/history/download', auth, (req, res) => {
     WHERE i.project_id = ? ORDER BY i.position, t.task_order IS NULL, t.task_order, t.id`).all(p.id);
 
   const q = v => '"' + String(v ?? '').replace(/"/g, '""') + '"';
-  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados' };
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados', docs_added: 'Documentos adicionados', doc_deleted: 'Documento excluído' };
   let csv = '\uFEFF'; // BOM: Excel abre com acentos corretos
   csv += 'HISTORICO — ' + (p.name ? p.client_name + ' — ' + p.name : p.client_name) + '\n';
   csv += 'Status atual:,' + q(p.status) + '\n\n';
@@ -1070,6 +1072,8 @@ app.post('/api/projects/:id/documents', auth, upload.array('files', 20), (req, r
     db.prepare('INSERT INTO project_documents (project_id, stored_name, original_name, mime_type, size, uploaded_by) VALUES (?,?,?,?,?,?)')
       .run(p.id, f.filename, f.originalname, f.mimetype, f.size, req.user.id);
   }
+  if ((req.files || []).length) db.prepare('INSERT INTO project_history (project_id, worker_id, action, notes) VALUES (?,?,?,?)')
+    .run(p.id, req.user.id, 'docs_added', req.files.map(f => f.originalname).join(', '));
   res.json({ ok: true, count: (req.files || []).length });
 });
 app.get('/api/projects/:id/documents', auth, (req, res) => {
@@ -1082,10 +1086,16 @@ app.get('/api/projects/:id/documents', auth, (req, res) => {
   res.json({ documents: docs });
 });
 app.delete('/api/documents/:id', auth, managerOnly, (req, res) => {
-  const d = db.prepare('SELECT d.*, p.company_id FROM project_documents d JOIN projects p ON p.id = d.project_id WHERE d.id = ?').get(req.params.id);
+  const d = db.prepare('SELECT d.*, p.company_id, p.status AS project_status FROM project_documents d JOIN projects p ON p.id = d.project_id WHERE d.id = ?').get(req.params.id);
+  if (d && ['completed', 'at_warehouse', 'delivered'].includes(d.project_status)) return res.status(400).json({ error: 'Esta folha está concluída — os documentos não podem mais ser excluídos.' });
   if (!d || d.company_id !== req.user.company_id) return res.status(404).json({ error: 'Arquivo não encontrado.' });
   try { fs.unlinkSync(path.join(uploadDir, d.stored_name)); } catch (e) {}
-  db.prepare('DELETE FROM project_documents WHERE id = ?').run(d.id);
+  const tx = db.transaction(() => {
+    db.prepare('DELETE FROM project_documents WHERE id = ?').run(d.id);
+    db.prepare('INSERT INTO project_history (project_id, worker_id, action, notes) VALUES (?,?,?,?)')
+      .run(d.project_id, req.user.id, 'doc_deleted', d.original_name);
+  });
+  tx();
   res.json({ ok: true });
 });
 app.get('/api/documents/:id/file', auth, (req, res) => {

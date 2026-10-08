@@ -434,7 +434,7 @@ async function createProject() {
   } catch (err) { alert(err.message); }
 }
 
-const HIST_LABELS = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados' };
+const HIST_LABELS = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados', docs_added: 'Documentos adicionados', doc_deleted: 'Documento excluído' };
 async function openOverview(id) {
   const [{ project: p, items }, hist] = await Promise.all([
     api('/api/projects/' + id + '/detail'),
@@ -699,7 +699,7 @@ async function showHistory(id) {
     api('/api/projects/' + id + '/history'),
     api('/api/projects/' + id + '/detail')
   ]);
-  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados' };
+  const labels = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados', docs_added: 'Documentos adicionados', doc_deleted: 'Documento excluído' };
   // Timeline estilo rastreamento: pontos ligados por linha
   let timeline = '';
   if (detail.route && detail.route.length) {
