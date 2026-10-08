@@ -63,7 +63,18 @@
     </aside>
   </div>
 </main>
-
+<div class="pj-viewer" id="pjViewer" hidden>
+  <div class="pj-viewer-top">
+    <div class="pj-viewer-title"><span id="pjViewerName"></span><span class="pj-viewer-count" id="pjViewerCount"></span></div>
+    <div class="pj-viewer-actions">
+      <a class="btn ghost small" id="pjViewerDl" href="#" target="_blank">⬇️ Baixar</a>
+      <button class="btn ghost small" id="pjViewerClose">✕ Fechar</button>
+    </div>
+  </div>
+  <button class="pj-viewer-nav prev" id="pjViewerPrev" aria-label="Anterior">‹</button>
+  <button class="pj-viewer-nav next" id="pjViewerNext" aria-label="Próximo">›</button>
+  <div class="pj-viewer-body" id="pjViewerBody"></div>
+</div>
 <script>
 const token = localStorage.getItem('token');
 if (!token) location.href = 'index.html';
@@ -138,12 +149,164 @@ function renderHero() {
     </div>`;
 }
 
-// ===== Abas (conteúdo real chega nos próximos passos) =====
+// ===== Abas =====
+let currentTab = 'work';
 document.querySelectorAll('.pj-tab').forEach(t => t.addEventListener('click', () => {
   document.querySelectorAll('.pj-tab').forEach(x => x.classList.remove('active'));
   t.classList.add('active');
-  document.getElementById('pjTabBody').innerHTML = '<p class="empty">Esta aba será construída no próximo passo.</p>';
+  currentTab = t.dataset.tab;
+  renderTab();
 }));
+function switchTab(name) {
+  const t = document.querySelector('.pj-tab[data-tab="' + name + '"]');
+  if (t) t.click();
+}
+function renderTab() {
+  const el = document.getElementById('pjTabBody');
+  if (currentTab === 'work') renderWorkTab(el);
+  else if (currentTab === 'files') renderFilesTab(el);
+  else renderActivityTab(el);
+}
+
+function docTile(d, i) {
+  const finished = ['completed', 'at_warehouse', 'delivered'].includes(PJ.p.status);
+  return `<div class="doc-tile" title="Clique para visualizar" onclick="openViewer(${i})">
+    ${(d.mime_type || '').startsWith('image/')
+      ? `<img class="doc-thumb" src="/api/documents/${d.id}/file?token=${token}" alt="" loading="lazy">`
+      : `<div class="doc-thumb icon">${(d.mime_type || '').includes('pdf') ? '📕' : '📄'}</div>`}
+    <div class="doc-name" title="${esc(d.original_name)}">${esc(d.original_name)}</div>
+    <div class="doc-actions">
+      <a class="btn ghost small" href="/api/documents/${d.id}/file?token=${token}&dl=1" onclick="event.stopPropagation()">Baixar</a>
+      ${finished ? '' : `<button class="btn ghost small" onclick="event.stopPropagation(); deleteDoc(${d.id})">Excluir</button>`}
+    </div>
+  </div>`;
+}
+
+function renderWorkTab(el) {
+  const { p, items, documents } = PJ;
+  const itemsHtml = (items || []).length ? items.map(it => {
+    const total = (it.tasks || []).length;
+    const done = (it.tasks || []).filter(t => t.status === 'done').length;
+    return `<div class="pj-item">
+      <div class="pj-item-head">
+        <span class="pj-check ${it.status === 'done' ? 'done' : 'todo'}">✓</span>
+        <span class="pj-item-name">${esc(it.name)}${it.quantity > 1 ? ' ×' + it.quantity : ''}</span>
+        <span class="pj-item-count">${done}/${total} tarefas</span>
+      </div>
+      ${(it.tasks || []).map(t => `
+        <div class="pj-task">
+          <span class="pj-check ${t.status === 'done' ? 'done' : 'todo'}">✓</span>
+          <span class="pj-task-name ${t.status === 'done' ? 'is-done' : ''}">${esc(t.name)}</span>
+          ${t.section_name ? `<span class="pj-task-sec">${esc(t.section_name)}</span>` : ''}
+          ${t.assigned_name ? `<span class="pj-task-who">${esc(t.assigned_name)}</span>` : ''}
+        </div>`).join('') || '<p class="empty" style="font-size:12px;margin:4px 0 0">Sem tarefas neste item.</p>'}
+    </div>`;
+  }).join('') : '<p class="empty">Esta folha não tem itens ainda.</p>';
+  const preview = (documents || []).slice(0, 4);
+  el.innerHTML = `
+    <div class="pj-section-head"><h2 class="pj-section-title">Itens e tarefas</h2></div>
+    ${itemsHtml}
+    <div class="pj-section-head" style="margin-top:22px"><h2 class="pj-section-title">Arquivos do projeto</h2>
+      <button class="btn ghost small" onclick="switchTab('files')">Ver todos (${documents.length})</button></div>
+    ${preview.length ? '<div class="doc-grid">' + preview.map((d, i) => docTile(d, i)).join('') + '</div>' : '<p class="empty">Nenhum documento anexado ainda.</p>'}
+    <div class="pj-dropzone" id="pjDropzone" style="margin-top:14px">⬆️ Clique ou arraste seus arquivos
+      <input type="file" id="pjFiles" multiple hidden>
+    </div>`;
+  wireDropzone();
+}
+
+function renderFilesTab(el) {
+  const { documents } = PJ;
+  el.innerHTML = `
+    <div class="pj-dropzone" id="pjDropzone">⬆️ Clique ou arraste seus arquivos
+      <input type="file" id="pjFiles" multiple hidden>
+    </div>
+    ${documents.length ? '<div class="doc-grid">' + documents.map((d, i) => docTile(d, i)).join('') + '</div>'
+      : '<p class="empty">Nenhum documento anexado ainda.</p>'}`;
+  wireDropzone();
+}
+
+function renderActivityTab(el) {
+  el.innerHTML = '<p class="empty">A atividade chega no próximo passo.</p>';
+}
+
+// ===== Upload e exclusão de documentos =====
+async function uploadFiles(files) {
+  if (!files || !files.length) return;
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  try {
+    const res = await fetch('/api/projects/' + folhaId + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token }, body: fd });
+    if (!res.ok) { const e = await res.json().catch(() => ({})); throw new Error(e.error || 'Erro'); }
+    await reload();
+  } catch (err) { alert(err.message); }
+}
+function wireDropzone() {
+  const dz = document.getElementById('pjDropzone');
+  if (!dz) return;
+  const input = document.getElementById('pjFiles');
+  input.addEventListener('change', () => uploadFiles(input.files));
+  dz.addEventListener('click', () => input.click());
+  dz.addEventListener('dragover', e => { e.preventDefault(); dz.classList.add('dragover'); });
+  dz.addEventListener('dragleave', () => dz.classList.remove('dragover'));
+  dz.addEventListener('drop', e => { e.preventDefault(); dz.classList.remove('dragover'); uploadFiles(e.dataTransfer.files); });
+}
+async function deleteDoc(docId) {
+  if (!confirm('Excluir este documento?')) return;
+  try {
+    await api('/api/documents/' + docId, { method: 'DELETE' });
+    await reload();
+  } catch (err) { alert(err.message); }
+}
+async function reload() {
+  const detail = await api('/api/projects/' + folhaId + '/detail');
+  PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [] };
+  renderHero();
+  renderTab();
+}
+
+// ===== Visualizador em tela cheia (estilo Drive) =====
+let viewerIdx = 0;
+function openViewer(i) {
+  viewerIdx = i;
+  renderViewer();
+  document.getElementById('pjViewer').hidden = false;
+  document.body.style.overflow = 'hidden';
+}
+function closeViewer() {
+  document.getElementById('pjViewer').hidden = true;
+  document.getElementById('pjViewerBody').innerHTML = '';
+  document.body.style.overflow = '';
+}
+function navViewer(dir) {
+  const n = PJ.documents.length;
+  if (!n) return;
+  viewerIdx = (viewerIdx + dir + n) % n;
+  renderViewer();
+}
+function renderViewer() {
+  const d = PJ.documents[viewerIdx];
+  const isImg = (d.mime_type || '').startsWith('image/');
+  document.getElementById('pjViewerBody').innerHTML = isImg
+    ? `<img src="/api/documents/${d.id}/file?token=${token}" alt="${esc(d.original_name)}" style="max-width:92vw;max-height:100%;border-radius:10px;box-shadow:0 24px 70px rgba(0,0,0,.55)">`
+    : `<iframe src="/api/documents/${d.id}/file?token=${token}" style="width:min(1000px,92vw);height:100%;border:0;border-radius:10px;background:#fff;box-shadow:0 24px 70px rgba(0,0,0,.55)"></iframe>`;
+  document.getElementById('pjViewerName').textContent = d.original_name;
+  document.getElementById('pjViewerCount').textContent = (viewerIdx + 1) + ' de ' + PJ.documents.length;
+  document.getElementById('pjViewerDl').href = '/api/documents/' + d.id + '/file?token=' + token + '&dl=1';
+  const one = PJ.documents.length < 2;
+  document.getElementById('pjViewerPrev').hidden = one;
+  document.getElementById('pjViewerNext').hidden = one;
+}
+document.getElementById('pjViewerClose').addEventListener('click', closeViewer);
+document.getElementById('pjViewerPrev').addEventListener('click', () => navViewer(-1));
+document.getElementById('pjViewerNext').addEventListener('click', () => navViewer(1));
+document.getElementById('pjViewer').addEventListener('click', e => { if (e.target.id === 'pjViewer' || e.target.id === 'pjViewerBody') closeViewer(); });
+document.addEventListener('keydown', e => {
+  if (document.getElementById('pjViewer').hidden) return;
+  if (e.key === 'Escape') closeViewer();
+  else if (e.key === 'ArrowRight') navViewer(1);
+  else if (e.key === 'ArrowLeft') navViewer(-1);
+});
 
 // ===== Chip do usuário =====
 function setAvatar(el, withDot) {
@@ -186,6 +349,7 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
     const detail = await api('/api/projects/' + folhaId + '/detail');
     PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [] };
     renderHero();
+    renderTab();
   } catch (err) {
     document.getElementById('pjHero').innerHTML = '<p class="empty">Folha não encontrada. <a href="manager.html">Voltar para projetos</a>.</p>';
   }

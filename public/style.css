@@ -792,13 +792,44 @@ body > .tabs ~ .panel {
 .act-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
 
 /* ===== v5.6 — project.html (página completa da folha) ===== */
-.pj-wrap { max-width: 1180px; margin: 0 auto; padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 18px; }
-.pj-backrow { display: flex; align-items: center; gap: 10px; }
+/* ===== v5.6 parte 3 — abas Trabalho/Arquivos + visualizador ===== */
+.pj-section-head { display: flex; align-items: center; justify-content: space-between; margin: 4px 0 12px; }
+.pj-section-title { font-size: 16px; font-weight: 800; letter-spacing: -.01em; margin: 0; color: #202433; }
+.pj-item { border: 1px solid #ECEEF2; border-radius: 14px; padding: 12px 14px; margin-bottom: 10px; }
+.pj-item-head { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; }
+.pj-item-name { font-weight: 800; font-size: 13px; color: #202433; }
+.pj-item-count { margin-left: auto; font-size: 11px; font-weight: 700; color: #989CA9; }
+.pj-task { display: flex; align-items: center; gap: 8px; padding: 3px 0 3px 4px; }
+.pj-task-name { font-size: 12px; font-weight: 600; color: #3A3F4E; }
+.pj-task-name.is-done { color: #A0A4B0; text-decoration: line-through; }
+.pj-task-sec { margin-left: auto; font-size: 10px; font-weight: 700; color: #3859F6; background: #EAF0FE; padding: 2px 8px; border-radius: 999px; }
+.pj-task-who { font-size: 10px; color: #989CA9; font-weight: 600; }
+.pj-check { width: 18px; height: 18px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; flex-shrink: 0; }
+.pj-check.done { background: #E8F7EE; color: #1D9E5F; border: 1px solid #BFE8CF; }
+.pj-check.todo { background: #F0F1F4; color: #A0A4B0; border: 1px solid #ECEEF2; }
+.pj-dropzone { border: 2px dashed #D8DBE3; border-radius: 14px; padding: 22px; text-align: center; color: #989CA9; font-weight: 700; font-size: 13px; cursor: pointer; margin-bottom: 16px; transition: border-color .15s, background .15s; }
+.pj-dropzone:hover, .pj-dropzone.dragover { border-color: #3859F6; background: #F5F8FF; color: #3859F6; }
+.pj-viewer { position: fixed; inset: 0; z-index: 1000; background: rgba(24,26,35,.94); display: flex; flex-direction: column; }
+.pj-viewer[hidden] { display: none; }
+.pj-viewer-top { display: flex; justify-content: space-between; align-items: center; gap: 16px; padding: 14px 20px; color: #fff; }
+.pj-viewer-title { display: flex; align-items: baseline; gap: 12px; font-weight: 700; font-size: 13px; min-width: 0; }
+.pj-viewer-title span:first-child { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.pj-viewer-count { font-size: 11px; color: rgba(255,255,255,.6); font-weight: 600; flex-shrink: 0; }
+.pj-viewer-actions { display: flex; gap: 8px; flex-shrink: 0; }
+.pj-viewer-actions .btn.ghost { background: rgba(255,255,255,.12); color: #fff; border-color: transparent; }
+.pj-viewer-body { flex: 1; display: flex; align-items: center; justify-content: center; padding: 0 76px 20px; min-height: 0; }
+.pj-viewer-nav { position: fixed; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; border: none; background: rgba(255,255,255,.14); color: #fff; font-size: 24px; line-height: 1; cursor: pointer; z-index: 1001; }
+.pj-viewer-nav:hover { background: rgba(255,255,255,.28); }
+.pj-viewer-nav.prev { left: 16px; }
+.pj-viewer-nav.next { right: 16px; }
+.pj-viewer-nav[hidden] { display: none; }
+.pj-wrap { max-width: 1180px; margin: 0 auto; padding: 40px 24px 56px; display: flex; flex-direction: column; gap: 22px; }
+.pj-backrow { display: flex; align-items: center; gap: 10px; margin-bottom: 4px; }
 .pj-back { color: #3859F6; font-weight: 700; text-decoration: none; font-size: 13px; }
 .pj-back:hover { text-decoration: underline; }
 .pj-crumb { color: #989CA9; font-size: 12px; font-weight: 600; }
 .pj-card { background: #fff; border: 1px solid #ECEEF2; border-radius: 22px; box-shadow: 0 10px 30px rgba(32,36,51,.06); }
-.pj-hero { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+.pj-hero { padding: 32px 36px 30px; display: flex; flex-direction: column; gap: 22px; }
 .pj-pills { display: flex; gap: 8px; flex-wrap: wrap; }
 .pj-badge { font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px; }
 .pj-badge.green { background: #E8F7EE; color: #1D9E5F; }
