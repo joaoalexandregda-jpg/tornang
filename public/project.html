@@ -1,0 +1,195 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Folha — Tornang</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body class="with-rail">
+<aside class="rail" id="rail">
+  <div class="rail-logo" id="railLogo">🏭</div>
+  <nav class="rail-nav">
+    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <div class="rail-sep"></div>
+    <div id="locIcons"></div>
+    <div class="rail-sep"></div>
+    <a class="rail-item" href="manager.html" title="Projetos">📁<span class="rail-label">Projetos</span></a>
+  </nav>
+</aside>
+<div class="topbar">
+  <h1>Tornang — <span id="companyName"></span></h1>
+  <div class="topbar-right">
+    <div class="menu-wrap">
+      <button class="chip" id="chipBtn">
+        <span class="avatar" id="chipAvatar"></span>
+        <span class="chip-name" id="chipName"></span>
+      </button>
+      <div class="dropdown" id="userMenu" hidden>
+        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
+        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
+        <hr>
+        <button class="dropdown-item danger" id="menuLogout">Sair</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<main class="pj-wrap">
+  <div class="pj-backrow">
+    <a class="pj-back" href="manager.html">← Projetos</a>
+    <span class="pj-crumb" id="pjCrumb"></span>
+  </div>
+
+  <section class="pj-card pj-hero" id="pjHero">
+    <p class="empty">Carregando folha…</p>
+  </section>
+
+  <div class="pj-cols">
+    <section class="pj-card pj-main">
+      <div class="pj-tabs" id="pjTabs">
+        <button class="pj-tab active" data-tab="work">Trabalho</button>
+        <button class="pj-tab" data-tab="files">Arquivos <span class="pj-tabcount" id="pjDocCount" hidden>0</span></button>
+        <button class="pj-tab" data-tab="activity">Atividade</button>
+      </div>
+      <div class="pj-tabbody" id="pjTabBody">
+        <p class="empty">Conteúdo das abas chega no próximo passo.</p>
+      </div>
+    </section>
+    <aside class="pj-side">
+      <div class="pj-card pj-sidecard" id="pjNotesCard"><p class="empty">Anotações — próximo passo.</p></div>
+      <div class="pj-card pj-sidecard" id="pjActivityCard"><p class="empty">Atividade recente — próximo passo.</p></div>
+      <div class="pj-card pj-sidecard" id="pjControlsCard"><p class="empty">Controles — próximo passo.</p></div>
+    </aside>
+  </div>
+</main>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = 'index.html';
+const user = JSON.parse(localStorage.getItem('user') || '{}');
+const company = JSON.parse(localStorage.getItem('company') || '{}');
+if (user.role !== 'manager') location.href = 'worker.html';
+document.getElementById('companyName').textContent = company.name;
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+function fmtDate(d) { return d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—'; }
+function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
+
+// ===== Estado da página =====
+const folhaId = Number(new URLSearchParams(location.search).get('id'));
+let PJ = null;
+
+function ringSvg(pct) {
+  const val = pct == null ? '—' : pct + '%';
+  const dash = pct == null ? 0 : Math.max(0, Math.min(100, pct));
+  return `<svg class="pj-ring" viewBox="0 0 42 42" width="72" height="72" role="img" aria-label="${val} concluído">
+    <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#ECEEF2" stroke-width="4.5"></circle>
+    ${dash > 0 ? `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="#3859F6" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${dash} ${100 - dash}" stroke-dashoffset="25"></circle>` : ''}
+    <text x="21" y="25" text-anchor="middle" font-size="9.5" font-weight="800" fill="#202433">${val}</text>
+  </svg>`;
+}
+
+function statusPill(p) {
+  return p.status === 'completed' ? '<span class="pj-badge green">Concluída</span>'
+    : p.status === 'at_warehouse' ? '<span class="pj-badge blue">📦 No armazém</span>'
+    : p.status === 'delivered' ? '<span class="pj-badge green">🚚 Entregue</span>'
+    : p.status === 'pending_release' ? '<span class="pj-badge gray">Aguardando liberação</span>'
+    : '<span class="pj-badge orange">Em produção</span>';
+}
+
+function renderHero() {
+  const { p, items } = PJ;
+  const tasks = (items || []).flatMap(it => it.tasks || []);
+  const done = tasks.filter(t => t.status === 'done').length;
+  const pct = tasks.length ? Math.round(done / tasks.length * 100) : null;
+  document.title = projectLabel(p) + ' — Tornang';
+  document.getElementById('pjCrumb').textContent = projectLabel(p);
+  const docCount = document.getElementById('pjDocCount');
+  docCount.textContent = (PJ.documents || []).length;
+  docCount.hidden = false;
+  document.getElementById('pjHero').innerHTML = `
+    <div class="pj-pills">
+      ${statusPill(p)}
+      ${p.priority ? '<span class="pj-badge red">⚠️ Urgente</span>' : ''}
+      ${p.archived ? '<span class="pj-badge gray">🗄️ Arquivada</span>' : ''}
+    </div>
+    <div class="pj-hero-grid">
+      <div>
+        <h1 class="pj-name">${esc(p.name || p.client_name)}</h1>
+        ${p.description ? `<p class="pj-desc">${esc(p.description)}</p>` : ''}
+      </div>
+      <div class="pj-completion">
+        ${ringSvg(pct)}
+        <div><b>${done} de ${tasks.length}</b><span class="sub">tarefas concluídas</span></div>
+      </div>
+    </div>
+    <div class="pj-meta">
+      <div class="pj-meta-item"><div class="k">Cliente</div><div class="v">${esc(p.client_name)}</div></div>
+      <div class="pj-meta-item"><div class="k">Prazo</div><div class="v">${fmtDate(p.due_date)}</div></div>
+      <div class="pj-meta-item"><div class="k">Responsável</div><div class="v">${esc(p.worker_name || 'Aguardando')}</div></div>
+      <div class="pj-meta-item"><div class="k">Criada em</div><div class="v">${fmtDate(p.created_at)}</div></div>
+    </div>`;
+}
+
+// ===== Abas (conteúdo real chega nos próximos passos) =====
+document.querySelectorAll('.pj-tab').forEach(t => t.addEventListener('click', () => {
+  document.querySelectorAll('.pj-tab').forEach(x => x.classList.remove('active'));
+  t.classList.add('active');
+  document.getElementById('pjTabBody').innerHTML = '<p class="empty">Esta aba será construída no próximo passo.</p>';
+}));
+
+// ===== Chip do usuário =====
+function setAvatar(el, withDot) {
+  el.innerHTML = (user.avatar ? `<img src="${esc(user.avatar)}" alt="Foto de perfil">` : `<span class="avatar-initial">${esc((user.name || '?').trim()[0].toUpperCase())}</span>`) + (withDot ? '<span class="status-dot"></span>' : '');
+}
+setAvatar(document.getElementById('chipAvatar'), true);
+document.getElementById('chipName').textContent = user.name || '';
+const userMenu = document.getElementById('userMenu');
+document.getElementById('chipBtn').addEventListener('click', e => { e.stopPropagation(); userMenu.hidden = !userMenu.hidden; });
+document.addEventListener('click', () => userMenu.hidden = true);
+document.querySelectorAll('.dropdown-item').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
+document.getElementById('menuLogout').addEventListener('click', async () => {
+  try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
+  localStorage.clear();
+  location.href = 'index.html';
+});
+
+// ===== Rail: logo + locais =====
+(async () => {
+  try {
+    const { company: c } = await api('/api/company');
+    if (c.logo) document.getElementById('railLogo').innerHTML = `<img src="/${esc(c.logo)}" alt="">`;
+    const { locations: locs } = await api('/api/locations');
+    const box = document.getElementById('locIcons');
+    locs.forEach(l => {
+      const b = document.createElement('button');
+      b.className = 'rail-item loc';
+      b.title = l.name;
+      b.innerHTML = `<span class="rail-ico">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span><span class="rail-label">${esc(l.name)}</span>`;
+      b.addEventListener('click', () => location.href = 'manager.html?loc=' + l.id);
+      box.appendChild(b);
+    });
+  } catch (e) {}
+})();
+
+// ===== Load =====
+(async () => {
+  if (!folhaId) { location.href = 'manager.html'; return; }
+  try {
+    const detail = await api('/api/projects/' + folhaId + '/detail');
+    PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [] };
+    renderHero();
+  } catch (err) {
+    document.getElementById('pjHero').innerHTML = '<p class="empty">Folha não encontrada. <a href="manager.html">Voltar para projetos</a>.</p>';
+  }
+})();
+</script>
+</body>
+</html>

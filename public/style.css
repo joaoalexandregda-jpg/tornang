@@ -790,3 +790,42 @@ body > .tabs ~ .panel {
 .ms-done { background:#E8F6F1; color:#248664; }
 .ms-todo { border:1px solid #D9DCE3; color:transparent; }
 .act-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }
+
+/* ===== v5.6 — project.html (página completa da folha) ===== */
+.pj-wrap { max-width: 1180px; margin: 0 auto; padding: 20px 24px 48px; display: flex; flex-direction: column; gap: 18px; }
+.pj-backrow { display: flex; align-items: center; gap: 10px; }
+.pj-back { color: #3859F6; font-weight: 700; text-decoration: none; font-size: 13px; }
+.pj-back:hover { text-decoration: underline; }
+.pj-crumb { color: #989CA9; font-size: 12px; font-weight: 600; }
+.pj-card { background: #fff; border: 1px solid #ECEEF2; border-radius: 22px; box-shadow: 0 10px 30px rgba(32,36,51,.06); }
+.pj-hero { padding: 24px 28px; display: flex; flex-direction: column; gap: 16px; }
+.pj-pills { display: flex; gap: 8px; flex-wrap: wrap; }
+.pj-badge { font-size: 11px; font-weight: 800; padding: 5px 12px; border-radius: 999px; }
+.pj-badge.green { background: #E8F7EE; color: #1D9E5F; }
+.pj-badge.blue { background: #EAF0FE; color: #3859F6; }
+.pj-badge.orange { background: #FEF3E6; color: #D97706; }
+.pj-badge.red { background: #FDECEC; color: #DC2626; }
+.pj-badge.gray { background: #F0F1F4; color: #656B7A; }
+.pj-hero-grid { display: flex; justify-content: space-between; gap: 24px; align-items: flex-start; }
+.pj-name { margin: 0; font-size: clamp(24px, 3vw, 32px); font-weight: 800; letter-spacing: -.02em; color: #202433; }
+.pj-desc { margin: 6px 0 0; color: #656B7A; font-size: 13.5px; line-height: 1.55; max-width: 640px; }
+.pj-completion { display: flex; align-items: center; gap: 14px; background: #F8F9FB; border: 1px solid #ECEEF2; border-radius: 16px; padding: 12px 18px; flex-shrink: 0; }
+.pj-completion b { font-size: 13px; color: #202433; }
+.pj-completion .sub { display: block; font-size: 11px; color: #989CA9; font-weight: 600; }
+.pj-meta { display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; border-top: 1px solid #ECEEF2; padding-top: 16px; }
+.pj-meta-item .k { font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .1em; color: #A1A5B0; }
+.pj-meta-item .v { font-size: 13px; font-weight: 700; color: #202433; margin-top: 3px; }
+.pj-cols { display: grid; grid-template-columns: 1fr 320px; gap: 18px; align-items: start; }
+.pj-main { padding: 0 24px 24px; }
+.pj-tabs { display: flex; gap: 4px; border-bottom: 1px solid #ECEEF2; }
+.pj-tab { background: none; border: none; padding: 14px 16px; font-weight: 700; font-size: 13px; color: #989CA9; border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.pj-tab.active { color: #3859F6; border-bottom-color: #3859F6; }
+.pj-tabcount { background: #EAF0FE; color: #3859F6; border-radius: 999px; font-size: 10px; padding: 2px 7px; font-weight: 800; }
+.pj-tabbody { padding-top: 18px; }
+.pj-side { display: flex; flex-direction: column; gap: 18px; }
+.pj-sidecard { padding: 18px 20px; }
+@media (max-width: 960px) {
+  .pj-cols { grid-template-columns: 1fr; }
+  .pj-meta { grid-template-columns: repeat(2, 1fr); }
+  .pj-hero-grid { flex-direction: column; }
+}
