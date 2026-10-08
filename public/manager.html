@@ -242,6 +242,7 @@ function renderRouteBuilder() {
 
 // ===== v5.0: construtor de itens e tarefas =====
 let npItems = [];
+let npItemStart = 0;
 let npSectionOptions = [];
 let npSelectedSections = [];
 
@@ -259,6 +260,7 @@ function renderItemsBuilder() {
   if (!npItems.length) { el.innerHTML = '<p class="empty">Nenhum item ainda.</p>'; return; }
   el.innerHTML = npItems.map((it, i) => `
     <div class="item" style="margin-bottom:10px">
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0;margin-bottom:4px">Item ${npItemStart + i + 1}</div>
       <div class="form-row">
         <div class="field"><input placeholder="Item (ex.: 30 placas de saída)" value="${esc(it.name)}" oninput="npItems[${i}].name=this.value"></div>
         <div class="field" style="max-width:80px"><input type="number" min="1" value="${it.quantity}" title="Quantidade" oninput="npItems[${i}].quantity=Number(this.value)||1"></div>
@@ -622,11 +624,27 @@ async function deleteProject(id) {
 }
 
 async function openAddItems(id) {
-  const { project: p, sections } = await api('/api/projects/' + id + '/detail');
+  const { project: p, sections, items } = await api('/api/projects/' + id + '/detail');
   sectionsCache = sections;
   npSectionOptions = sections;
   npItems = [];
+  npItemStart = (items || []).length;
+  const existingHtml = (items || []).length
+    ? '<h3 style="font-size:12px;font-weight:800;margin:0 0 6px">Itens já na folha</h3>' +
+      items.map(it => {
+        const total = (it.tasks || []).length;
+        const done = (it.tasks || []).filter(t => t.status === 'done').length;
+        return `<div class="ms-row">
+          <span class="ms-check ${it.status === 'done' ? 'ms-done' : 'ms-todo'}">✓</span>
+          <span style="font-size:11px;font-weight:600;color:#3A3F4E">${esc(it.name)}${it.quantity > 1 ? ' ×' + it.quantity : ''}</span>
+          <span style="margin-left:auto;font-size:9px;font-weight:700;color:#989CA9">${done}/${total} tarefas</span>
+        </div>`;
+      }).join('')
+    : '<p class="hint">Esta folha ainda não tem itens — os que você adicionar abaixo serão os primeiros.</p>';
   openModal('Adicionar itens — ' + projectLabel(p), `
+    ${existingHtml}
+    <div style="border-top:1px solid #ECEEF2;margin:14px 0 10px"></div>
+    <h3 style="font-size:12px;font-weight:800;margin:0 0 2px">Adicionar novos itens</h3>
     <p class="hint">Cada item é uma parte do projeto (ex.: 30 placas de saída). Adicione as tarefas na ordem em que acontecem.</p>
     <div id="npItemsList"></div>
     <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>`,
