@@ -769,3 +769,24 @@ body > .tabs ~ .panel {
 .dropzone p { margin: 4px 0 0; font-size: 13px; color: #64748b; }
 .dropzone.drag { background: rgba(13,148,136,.16); }
 .hint { font-size: 12px; color: #64748b; margin: 2px 0 6px; }
+
+/* ===== v5.4: Painel de projetos ===== */
+.pillbar { display:flex; gap:4px; background:#fff; border:1px solid #E5E7EC; border-radius:12px; padding:4px; box-shadow:0 1px 3px rgba(23,31,51,.08); }
+.pillbar button { border:0; background:transparent; border-radius:8px; padding:8px 14px; font-size:11px; font-weight:700; color:#8A8F9F; cursor:pointer; }
+.pillbar button.on { background:#22283A; color:#fff; }
+.projlist { border:1px solid #E3E5EA; border-radius:16px; background:#fff; overflow:hidden; box-shadow:0 4px 18px rgba(30,37,55,.035); }
+.projrow { display:flex; align-items:center; gap:16px; width:100%; padding:16px 20px; border:0; border-bottom:1px solid #ECEEF2; background:#fff; cursor:pointer; text-align:left; font:inherit; }
+.projrow:last-child { border-bottom:0; }
+.projrow:hover { background:#FAFAFC; }
+.ring { position:relative; flex-shrink:0; }
+.ring svg { transform:rotate(-90deg); display:block; }
+.ring span { position:absolute; inset:0; display:grid; place-items:center; font-size:10px; font-weight:800; color:#22283A; }
+.drawer-backdrop { position:fixed; inset:0; z-index:60; background:rgba(23,32,56,.25); backdrop-filter:blur(2px); }
+.drawer { position:fixed; top:0; right:0; bottom:0; z-index:61; width:100%; max-width:440px; overflow-y:auto; background:#fff; box-shadow:-18px 0 60px rgba(27,34,53,.13); }
+.drawer-head { position:sticky; top:0; z-index:2; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid #EBECF0; background:rgba(255,255,255,.95); padding:20px 24px; backdrop-filter:blur(4px); }
+.drawer-body { padding:28px 24px; }
+.ms-row { display:flex; align-items:center; gap:12px; margin-bottom:10px; }
+.ms-check { width:20px; height:20px; border-radius:50%; display:grid; place-items:center; flex-shrink:0; font-size:11px; }
+.ms-done { background:#E8F6F1; color:#248664; }
+.ms-todo { border:1px solid #D9DCE3; color:transparent; }
+.act-dot { width:8px; height:8px; border-radius:50%; flex-shrink:0; margin-top:5px; }

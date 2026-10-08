@@ -155,10 +155,6 @@ async function loadProjects() {
   const [{ projects }, { sections }] = await Promise.all([api('/api/projects' + (qs ? '?' + qs : '')), api('/api/company/sections' + (currentLocId ? '?loc=' + currentLocId : ''))]);
   projectsCache = projects;
   sectionsCache = sections;
-  const sel = document.getElementById('pSectionFilter');
-  const cur = sel.value;
-  sel.innerHTML = '<option value="all">Todas as seções</option>' + sections.map(s => `<option value="${s.id}">${esc(s.name)}</option>`).join('');
-  sel.value = cur;
   renderProjects();
 }
 let projectsCache = [];
@@ -210,7 +206,6 @@ function renderProjects() {
   }).join('') + '</div>';
 }
 document.getElementById('pSearch').addEventListener('input', renderProjects);
-document.getElementById('pSectionFilter').addEventListener('change', renderProjects);
 // ===== Construtor de rota (final — grip de arraste, sem setas) =====
 let sectionsCache = [];
 let routeSteps = [];   // [[sectionId,...], ...] — seções no mesmo array trabalham em paralelo
