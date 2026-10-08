@@ -407,7 +407,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
         WHERE i.project_id = ? AND t.status = 'active' ORDER BY i.position, t.task_order LIMIT 1`).get(projectId);
       db.prepare('UPDATE projects SET current_section_id = ? WHERE id = ?').run(first ? first.section_id : null, projectId);
       db.prepare('UPDATE projects SET assigned_to = ? WHERE id = ?').run(req.user.id, projectId);
-      db.prepare('INSERT INTO project_history (project_id, action) VALUES (?,?)').run(projectId, 'created');
+      db.prepare('INSERT INTO project_history (project_id, worker_id, action) VALUES (?,?,?)').run(projectId, req.user.id, 'created');
     });
     tx();
     return res.json({ ok: true, id: projectId });
@@ -433,7 +433,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
       for (const sid of st) ins.run(projectId, sid, stepNo, stepNo === 1 ? 'active' : 'pending');
     });
     db.prepare('UPDATE projects SET assigned_to = ? WHERE id = ?').run(req.user.id, projectId);
-    db.prepare('INSERT INTO project_history (project_id, section_id, action) VALUES (?,?,?)').run(projectId, steps[0][0], 'created');
+    db.prepare('INSERT INTO project_history (project_id, worker_id, section_id, action) VALUES (?,?,?,?)').run(projectId, req.user.id, steps[0][0], 'created');
   });
   tx();
   res.json({ ok: true, id: projectId });

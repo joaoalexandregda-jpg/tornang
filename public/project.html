@@ -14,7 +14,8 @@
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item" href="manager.html" title="Projetos">📁<span class="rail-label">Projetos</span></a>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
   </nav>
 </aside>
 <div class="topbar">
@@ -51,6 +52,7 @@
         <button class="pj-tab active" data-tab="work">Trabalho</button>
         <button class="pj-tab" data-tab="files">Arquivos <span class="pj-tabcount" id="pjDocCount" hidden>0</span></button>
         <button class="pj-tab" data-tab="activity">Atividade</button>
+        <button class="pj-tab" data-tab="members">Membros</button>
       </div>
       <div class="pj-tabbody" id="pjTabBody">
         <p class="empty">Conteúdo das abas chega no próximo passo.</p>
@@ -59,6 +61,7 @@
     <aside class="pj-side">
       <div class="pj-card pj-sidecard" id="pjNotesCard"><p class="empty">Anotações — próximo passo.</p></div>
       <div class="pj-card pj-sidecard" id="pjActivityCard"><p class="empty">Atividade recente — próximo passo.</p></div>
+      <div class="pj-card pj-sidecard" id="pjMembersCard"><p class="empty">Membros — a carregar…</p></div>
       <div class="pj-card pj-sidecard" id="pjControlsCard"><p class="empty">Controles — próximo passo.</p></div>
     </aside>
   </div>
@@ -74,6 +77,13 @@
   <button class="pj-viewer-nav prev" id="pjViewerPrev" aria-label="Anterior">‹</button>
   <button class="pj-viewer-nav next" id="pjViewerNext" aria-label="Próximo">›</button>
   <div class="pj-viewer-body" id="pjViewerBody"></div>
+</div>
+<div class="pj-modal-wrap" id="pjModal" hidden>
+  <div class="pj-modal">
+    <div class="pj-modal-head"><h3 id="pjModalTitle"></h3><button class="pj-modal-close" id="pjModalClose" title="Fechar">✕</button></div>
+    <div class="pj-modal-body" id="pjModalBody"></div>
+    <div class="pj-modal-foot" id="pjModalFoot"></div>
+  </div>
 </div>
 <script>
 const token = localStorage.getItem('token');
@@ -128,7 +138,9 @@ function renderHero() {
   document.getElementById('pjHero').innerHTML = `
     <div class="pj-pills">
       ${statusPill(p)}
-      ${p.priority ? '<span class="pj-badge red">⚠️ Urgente</span>' : ''}
+      ${['completed', 'at_warehouse', 'delivered'].includes(p.status)
+        ? (p.priority ? '<span class="pj-badge red">⚠️ Urgente</span>' : '')
+        : `<button class="pj-badge ${p.priority ? 'red' : 'gray'} pj-pill-btn" onclick="togglePriority()" title="${p.priority ? 'Remover urgência' : 'Marcar como urgente'}">${p.priority ? '⚠️ Urgente' : 'Marcar urgente'}</button>`}
       ${p.archived ? '<span class="pj-badge gray">🗄️ Arquivada</span>' : ''}
     </div>
     <div class="pj-hero-grid">
@@ -165,6 +177,7 @@ function renderTab() {
   const el = document.getElementById('pjTabBody');
   if (currentTab === 'work') renderWorkTab(el);
   else if (currentTab === 'files') renderFilesTab(el);
+  else if (currentTab === 'members') renderMembersTab(el);
   else renderActivityTab(el);
 }
 
@@ -183,7 +196,8 @@ function docTile(d, i) {
 }
 
 function renderWorkTab(el) {
-  const { p, items, documents } = PJ;
+  const { p, items } = PJ;
+  const finished = ['completed', 'at_warehouse', 'delivered'].includes(p.status);
   const itemsHtml = (items || []).length ? items.map(it => {
     const total = (it.tasks || []).length;
     const done = (it.tasks || []).filter(t => t.status === 'done').length;
@@ -198,21 +212,14 @@ function renderWorkTab(el) {
           <span class="pj-check ${t.status === 'done' ? 'done' : 'todo'}">✓</span>
           <span class="pj-task-name ${t.status === 'done' ? 'is-done' : ''}">${esc(t.name)}</span>
           ${t.section_name ? `<span class="pj-task-sec">${esc(t.section_name)}</span>` : ''}
-          ${t.assigned_name ? `<span class="pj-task-who">${esc(t.assigned_name)}</span>` : ''}
+          ${t.assigned_name ? `<span class="pj-ava" title="${esc(t.assigned_name)}">${esc(t.assigned_name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join(''))}</span>` : ''}
         </div>`).join('') || '<p class="empty" style="font-size:12px;margin:4px 0 0">Sem tarefas neste item.</p>'}
     </div>`;
   }).join('') : '<p class="empty">Esta folha não tem itens ainda.</p>';
-  const preview = (documents || []).slice(0, 4);
   el.innerHTML = `
-    <div class="pj-section-head"><h2 class="pj-section-title">Itens e tarefas</h2></div>
-    ${itemsHtml}
-    <div class="pj-section-head" style="margin-top:22px"><h2 class="pj-section-title">Arquivos do projeto</h2>
-      <button class="btn ghost small" onclick="switchTab('files')">Ver todos (${documents.length})</button></div>
-    ${preview.length ? '<div class="doc-grid">' + preview.map((d, i) => docTile(d, i)).join('') + '</div>' : '<p class="empty">Nenhum documento anexado ainda.</p>'}
-    <div class="pj-dropzone" id="pjDropzone" style="margin-top:14px">⬆️ Clique ou arraste seus arquivos
-      <input type="file" id="pjFiles" multiple hidden>
-    </div>`;
-  wireDropzone();
+    <div class="pj-section-head"><h2 class="pj-section-title">Itens e tarefas</h2>
+      ${finished ? '' : '<button class="btn primary small" onclick="openAddItem()">+ Adicionar item</button>'}</div>
+    ${itemsHtml}`;
 }
 
 function renderFilesTab(el) {
@@ -258,10 +265,18 @@ async function deleteDoc(docId) {
     await reload();
   } catch (err) { alert(err.message); }
 }
+async function togglePriority() {
+  try {
+    await api('/api/projects/' + folhaId + '/priority', { method: 'POST' });
+    await reload();
+  } catch (err) { alert(err.message); }
+}
 async function reload() {
   const detail = await api('/api/projects/' + folhaId + '/detail');
-  PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [] };
+  PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [] };
+  try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) { PJ.history = PJ.history || []; }
   renderHero();
+  renderMembersCard();
   renderTab();
 }
 
@@ -308,6 +323,102 @@ document.addEventListener('keydown', e => {
   else if (e.key === 'ArrowLeft') navViewer(-1);
 });
 
+// ===== Modal: adicionar UM item com N tarefas =====
+let naItem = null;
+function openAddItem() {
+  naItem = { name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: PJ.sections && PJ.sections[0] ? PJ.sections[0].id : null }] };
+  document.getElementById('pjModalTitle').textContent = 'Adicionar item';
+  naRender();
+  document.getElementById('pjModal').hidden = false;
+}
+function closePjModal() { document.getElementById('pjModal').hidden = true; }
+function naRender() {
+  document.getElementById('pjModalBody').innerHTML = `
+    <div class="form-row">
+      <div class="field"><label>Item</label><input placeholder="ex.: 30 placas de saída" value="${esc(naItem.name)}" oninput="naItem.name=this.value"></div>
+      <div class="field" style="max-width:90px"><label>Qtd</label><input type="number" min="1" value="${naItem.quantity}" oninput="naItem.quantity=Number(this.value)||1"></div>
+      <label style="display:flex;align-items:center;gap:6px;white-space:nowrap;margin-top:22px"><input type="checkbox" style="width:auto" ${naItem.ordered ? 'checked' : ''} onchange="naItem.ordered=this.checked;naRender()"> Ordenado</label>
+    </div>
+    <p class="hint" style="margin:2px 0 10px">Tarefas na ordem em que acontecem:</p>
+    ${naItem.tasks.map((t, ti) => `
+      <div class="form-row" style="margin-bottom:8px">
+        <div class="field"><input placeholder="Tarefa ${naItem.ordered ? (ti + 1) + ' — ' : ''}(ex.: desenho, corte, pintura)" value="${esc(t.name)}" oninput="naItem.tasks[${ti}].name=this.value"></div>
+        <div class="field"><select onchange="naItem.tasks[${ti}].section_id=Number(this.value)">
+          <option value="">Seção...</option>
+          ${PJ.sections.map(s => `<option value="${s.id}" ${t.section_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+        </select></div>
+        ${naItem.ordered ? `<button class="btn ghost small" onclick="naMoveTask(${ti},-1)" ${ti === 0 ? 'disabled' : ''}>↑</button>
+        <button class="btn ghost small" onclick="naMoveTask(${ti},1)" ${ti === naItem.tasks.length - 1 ? 'disabled' : ''}>↓</button>` : ''}
+        <button class="btn ghost small" onclick="naRemoveTask(${ti})" ${naItem.tasks.length === 1 ? 'disabled' : ''}>✕</button>
+      </div>`).join('')}
+    <button class="btn ghost small" onclick="naAddTask()">+ Tarefa</button>`;
+  document.getElementById('pjModalFoot').innerHTML = `
+    <button class="btn ghost" onclick="closePjModal()">Cancelar</button>
+    <button class="btn primary" onclick="naSave()">Salvar item</button>`;
+}
+function naAddTask() { naItem.tasks.push({ name: '', section_id: naItem.tasks[0] ? naItem.tasks[0].section_id : null }); naRender(); }
+function naRemoveTask(ti) { naItem.tasks.splice(ti, 1); naRender(); }
+function naMoveTask(ti, dir) {
+  const j = ti + dir;
+  if (j < 0 || j >= naItem.tasks.length) return;
+  [naItem.tasks[ti], naItem.tasks[j]] = [naItem.tasks[j], naItem.tasks[ti]]; naRender();
+}
+async function naSave() {
+  const item = {
+    name: naItem.name.trim(),
+    quantity: Math.max(1, Number(naItem.quantity) || 1),
+    ordered: !!naItem.ordered,
+    tasks: naItem.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
+  };
+  if (!item.name) return alert('Dê um nome ao item.');
+  if (!item.tasks.length) return alert('O item precisa de pelo menos uma tarefa com seção.');
+  try {
+    await api('/api/projects/' + folhaId + '/items', { method: 'POST', body: JSON.stringify({ items: [item] }) });
+    closePjModal();
+    await reload();
+  } catch (err) { alert(err.message); }
+}
+document.getElementById('pjModalClose').addEventListener('click', closePjModal);
+document.getElementById('pjModal').addEventListener('click', e => { if (e.target.id === 'pjModal') closePjModal(); });
+document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('pjModal').hidden) closePjModal(); });
+
+// ===== Membros =====
+const MEMBER_ROLES = { created: 'Criou a folha', accepted: 'Assumiu a folha', task_accepted: 'Concluiu tarefas', task_done: 'Concluiu tarefas', finished: 'Concluiu a seção', passed: 'Passou a folha', released: 'Liberou a folha', route_updated: 'Ajustou a rota', items_added: 'Adicionou itens', docs_added: 'Adicionou documentos', doc_deleted: 'Excluiu documentos', assigned: 'Responsável atual' };
+function memberInitials(name) { return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join(''); }
+function memberSet() {
+  const map = new Map();
+  for (const h of PJ.history || []) {
+    if (!h.worker_name) continue;
+    if (!map.has(h.worker_name)) map.set(h.worker_name, new Set());
+    map.get(h.worker_name).add(h.action);
+  }
+  if (PJ.p.worker_name && !map.has(PJ.p.worker_name)) map.set(PJ.p.worker_name, new Set(['assigned']));
+  return map;
+}
+function renderMembersCard() {
+  const el = document.getElementById('pjMembersCard');
+  const names = [...memberSet().keys()];
+  const balls = names.slice(0, 6).map(n => `<span class="pj-ava pj-ava-lg" title="${esc(n)}">${esc(memberInitials(n))}</span>`).join('');
+  el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Membros</h2>
+    <button class="btn ghost small" onclick="switchTab('members')">Ver todos</button></div>
+    ${balls ? `<div class="pj-member-balls">${balls}</div>` : '<p class="empty">Ninguém ainda.</p>'}
+    <p class="hint" style="margin:8px 0 0">${names.length} pessoa${names.length === 1 ? '' : 's'} envolvida${names.length === 1 ? '' : 's'}</p>`;
+}
+function renderMembersTab(el) {
+  const map = memberSet();
+  const rows = [...map.entries()].map(([name, acts]) => {
+    const roles = [...acts].map(a => MEMBER_ROLES[a]).filter(Boolean);
+    return `<div class="pj-member">
+      <span class="pj-ava pj-ava-lg">${esc(memberInitials(name))}</span>
+      <div><div class="pj-member-name">${esc(name)}</div>
+      <div class="pj-member-roles">${roles.length ? esc(roles.join(' · ')) : 'Participou da folha'}</div></div>
+    </div>`;
+  }).join('');
+  el.innerHTML = rows
+    ? '<div class="pj-section-head"><h2 class="pj-section-title">Membros do projeto</h2></div>' + rows
+    : '<p class="empty">Ninguém trabalhou nesta folha ainda.</p>';
+}
+
 // ===== Chip do usuário =====
 function setAvatar(el, withDot) {
   el.innerHTML = (user.avatar ? `<img src="${esc(user.avatar)}" alt="Foto de perfil">` : `<span class="avatar-initial">${esc((user.name || '?').trim()[0].toUpperCase())}</span>`) + (withDot ? '<span class="status-dot"></span>' : '');
@@ -347,13 +458,41 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
   if (!folhaId) { location.href = 'manager.html'; return; }
   try {
     const detail = await api('/api/projects/' + folhaId + '/detail');
-    PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [] };
+    PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [] };
+    try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) { PJ.history = []; }
     renderHero();
+    renderMembersCard();
     renderTab();
   } catch (err) {
     document.getElementById('pjHero').innerHTML = '<p class="empty">Folha não encontrada. <a href="manager.html">Voltar para projetos</a>.</p>';
   }
 })();
+
+// ===== Auto-atualização (3s, como nas outras páginas) =====
+let pjSig = '';
+function signature(s) {
+  const tasks = (s.items || []).flatMap(it => it.tasks || []);
+  return JSON.stringify([s.p.status, s.p.priority, s.p.assigned_to, s.p.worker_name,
+    (s.documents || []).map(d => d.id).join(','),
+    tasks.map(t => t.status + ':' + (t.assigned_name || '')).join(',')]);
+}
+function pjBusy() {
+  const ae = document.activeElement;
+  return !document.getElementById('pjModal').hidden || !document.getElementById('pjViewer').hidden
+    || (ae && ['INPUT', 'TEXTAREA', 'SELECT'].includes(ae.tagName));
+}
+setInterval(async () => {
+  if (document.hidden || pjBusy()) return;
+  try {
+    const detail = await api('/api/projects/' + folhaId + '/detail');
+    const next = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [], history: PJ.history || [] };
+    const sig = signature(next);
+    if (sig === pjSig) return;
+    try { next.history = (await api('/api/projects/' + folhaId + '/history')).history || []; } catch (e) {}
+    PJ = next; pjSig = sig;
+    renderHero(); renderMembersCard(); renderTab();
+  } catch (e) {}
+}, 3000);
 </script>
 </body>
 </html>
