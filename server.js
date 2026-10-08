@@ -901,29 +901,19 @@ app.post('/api/projects/:id/unarchive', auth, managerOnly, (req, res) => {
 app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
   if (!p) return res.status(404).json({ error: 'Folha não encontrada.' });
-
-  const trashDir = path.join(uploadDir, 'deleted');
-  try { fs.mkdirSync(trashDir, { recursive: true }); } catch (e) {}
-  const docs = db.prepare('SELECT * FROM project_documents WHERE project_id = ?').all(p.id);
-  for (const d of docs) {
-    const from = path.join(uploadDir, d.stored_name);
-    if (fs.existsSync(from)) {
-      let dest = path.join(trashDir, d.stored_name);
-      if (fs.existsSync(dest)) dest = path.join(trashDir, Date.now() + '-' + d.stored_name);
-      try { fs.renameSync(from, dest); }
-      catch (e) { try { fs.copyFileSync(from, dest); fs.unlinkSync(from); } catch (e2) {} }
-    }
+  for (const d of db.prepare('SELECT stored_name FROM project_documents WHERE project_id = ?').all(p.id)) {
+    try { fs.unlinkSync(path.join(uploadDir, d.stored_name)); } catch (e) {}
   }
-
   const tx = db.transaction(() => {
     db.prepare('DELETE FROM project_tasks WHERE item_id IN (SELECT id FROM project_items WHERE project_id = ?)').run(p.id);
     db.prepare('DELETE FROM project_items WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_documents WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM project_route WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM project_notes WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM project_history WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_notes WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM project_collaborators WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM join_requests WHERE project_id = ?').run(p.id);
-    db.prepare('DELETE FROM project_documents WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM notifications WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
   });
   tx();

@@ -162,11 +162,11 @@ function ringSvg(done, total, size = 48) {
   const pct = total ? Math.round(done / total * 100) : 0;
   const r = 18, c = 2 * Math.PI * r;
   const off = c - (pct / 100) * c;
-  const color = pct >= 100 ? '#1F9D72' : '#3859F6';
+  const color = !total ? '#C9CDD6' : (pct >= 100 ? '#1F9D72' : '#3859F6');
   return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 44 44" width="${size}" height="${size}">
     <circle cx="22" cy="22" r="${r}" fill="none" stroke="#E9EBF1" stroke-width="4"/>
     <circle cx="22" cy="22" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/>
-  </svg><span>${pct}%</span></div>`;
+  </svg><span>${total ? pct + '%' : '—'}</span></div>`;
 }
 function projStatus(p) {
   if (['completed', 'at_warehouse', 'delivered'].includes(p.status)) return { label: 'Concluída', color: '#1F9D72', soft: '#E8F8F2' };
@@ -434,16 +434,16 @@ async function createProject() {
 
 const HIST_LABELS = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados' };
 async function openOverview(id) {
-  const [{ project: p }, hist] = await Promise.all([
+  const [{ project: p, items }, hist] = await Promise.all([
     api('/api/projects/' + id + '/detail'),
     api('/api/projects/' + id + '/history')
   ]);
   document.getElementById('drawerSub').textContent = p.client_name;
-  const tasks = (p.items || []).flatMap(it => it.tasks || []);
+  const tasks = (items || []).flatMap(it => it.tasks || []);
   const done = tasks.filter(t => t.status === 'done').length;
   const pct = tasks.length ? Math.round(done / tasks.length * 100) : 0;
   const st = projStatus(p);
-  const milestones = (p.items || []).map(it => `
+  const milestones = (items || []).map(it => `
     <p style="margin:14px 0 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0">${esc(it.name)}${it.quantity > 1 ? ' ×' + it.quantity : ''}</p>
     ${(it.tasks || []).map(t => `
       <div class="ms-row">
@@ -464,14 +464,11 @@ async function openOverview(id) {
       </div>
     </div>`).join('');
   document.getElementById('drawerBody').innerHTML = `
-    <div style="display:flex;gap:20px;align-items:flex-start">
-      ${ringSvg(done, tasks.length, 68)}
-      <div>
-        <h2 style="font-size:21px;font-weight:800;letter-spacing:-.03em;line-height:1.2">${esc(projectLabel(p))}</h2>
-        <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
-          <span class="badge" style="background:${st.soft};color:${st.color}">${st.label}</span>
-          <span style="font-size:10px;font-weight:600;color:#969AA7">Prazo ${p.due_date ? fmtDate(p.due_date) : '—'}</span>
-        </div>
+    <div>
+      <h2 style="font-size:21px;font-weight:800;letter-spacing:-.03em;line-height:1.2">${esc(projectLabel(p))}</h2>
+      <div style="margin-top:8px;display:flex;align-items:center;gap:8px">
+        <span class="badge" style="background:${st.soft};color:${st.color}">${st.label}</span>
+        <span style="font-size:10px;font-weight:600;color:#969AA7">Prazo ${p.due_date ? fmtDate(p.due_date) : '—'}</span>
       </div>
     </div>
     ${p.description ? `<p style="margin-top:20px;font-size:12px;line-height:1.7;color:#797E8E">${esc(p.description)}</p>` : ''}
@@ -509,7 +506,7 @@ function closeDrawer() {
 }
 
 async function openDetail(id) {
-  const { project: p, documents } = await api('/api/projects/' + id + '/detail');
+  const { project: p, documents, items } = await api('/api/projects/' + id + '/detail');
   const isImg = d => (d.mime_type || '').startsWith('image/');
   const docsHtml = documents.length
     ? '<div class="doc-grid">' + documents.map(d => `
@@ -524,6 +521,16 @@ async function openDetail(id) {
         </div>
       </div>`).join('') + '</div>'
     : '<p class="empty">Nenhum documento anexado ainda.</p>';
+  const itemsHtml = (items || []).length
+    ? '<h3 style="font-size:12px;font-weight:800;margin:18px 0 4px">Itens e tarefas</h3>' + items.map(it => `
+      <p style="margin:12px 0 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0">${esc(it.name)}${it.quantity > 1 ? ' ×' + it.quantity : ''}${it.status === 'done' ? ' ✅' : ''}</p>
+      ${(it.tasks || []).map(t => `
+        <div class="ms-row">
+          <span class="ms-check ${t.status === 'done' ? 'ms-done' : 'ms-todo'}">✓</span>
+          <span style="font-size:11px;font-weight:600;color:${t.status === 'done' ? '#656B7A' : '#A0A4B0'}">${esc(t.name)}</span>
+          ${t.assigned_name ? `<span style="margin-left:auto;font-size:9px;color:#989CA9">${esc(t.assigned_name)}</span>` : ''}
+        </div>`).join('') || '<p class="empty" style="font-size:11px">Sem tarefas neste item.</p>'}`).join('')
+    : '<p class="empty" style="margin-top:14px">Esta folha não tem itens — foi criada antes do sistema de tarefas.</p>';
   openModal(p.client_name, `
         <p style="margin:0 0 6px">
       ${p.priority ? '<span class="badge red">⚠️ Urgente</span> ' : ''}
@@ -539,6 +546,7 @@ async function openDetail(id) {
       ${p.name ? `<span class="muted"><b>Projeto:</b> <span style="color:#1d4ed8;font-weight:700">${esc(p.name)}</span></span>` : ''}
     </div>
     <p class="muted" style="margin:2px 0 0"><b>Responsável:</b> ${esc(p.worker_name || 'Aguardando')}</p>
+    ${itemsHtml}
     ${docsHtml}
     <div class="dropzone" id="dropzone">⬆️ Clique ou arraste seu arquivo
       <input type="file" id="detailFiles" multiple hidden>
