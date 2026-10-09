@@ -1066,7 +1066,12 @@ app.post('/api/projects/:id/documents', auth, upload.array('files', 20), (req, r
   if (me.role !== 'manager') {
     if (!me.section_id) return res.status(403).json({ error: 'Você não pertence a uma seção.' });
     const active = db.prepare("SELECT 1 FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
-    if (!active) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+    if (!active) {
+      const holder = db.prepare('SELECT 1 FROM project_route WHERE project_id = ? AND assigned_to = ?').get(p.id, me.id)
+        || db.prepare('SELECT 1 FROM project_tasks t JOIN project_items i ON i.id = t.item_id WHERE i.project_id = ? AND t.assigned_to = ?').get(p.id, me.id)
+        || db.prepare('SELECT 1 FROM project_collaborators WHERE project_id = ? AND user_id = ?').get(p.id, me.id);
+      if (!holder) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+    }
   }
   for (const f of req.files || []) {
     db.prepare('INSERT INTO project_documents (project_id, stored_name, original_name, mime_type, size, uploaded_by) VALUES (?,?,?,?,?,?)')
@@ -1275,7 +1280,9 @@ app.post('/api/projects/:id/notes', auth, (req, res) => {
     if (!me.section_id) return res.status(403).json({ error: 'Você não pertence a uma seção.' });
     const active = db.prepare("SELECT 1 FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
     if (!active) {
-      const holder = db.prepare('SELECT 1 FROM project_route WHERE project_id = ? AND assigned_to = ?').get(p.id, me.id);
+      const holder = db.prepare('SELECT 1 FROM project_route WHERE project_id = ? AND assigned_to = ?').get(p.id, me.id)
+        || db.prepare('SELECT 1 FROM project_tasks t JOIN project_items i ON i.id = t.item_id WHERE i.project_id = ? AND t.assigned_to = ?').get(p.id, me.id)
+        || db.prepare('SELECT 1 FROM project_collaborators WHERE project_id = ? AND user_id = ?').get(p.id, me.id);
       if (!holder) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
     }
   }
@@ -1300,7 +1307,9 @@ app.post('/api/projects/:id/alert', auth, (req, res) => {
     if (!me.section_id) return res.status(403).json({ error: 'Você não pertence a uma seção.' });
     const active = db.prepare("SELECT 1 FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
     if (!active) {
-      const holder = db.prepare('SELECT 1 FROM project_route WHERE project_id = ? AND assigned_to = ?').get(p.id, me.id);
+      const holder = db.prepare('SELECT 1 FROM project_route WHERE project_id = ? AND assigned_to = ?').get(p.id, me.id)
+        || db.prepare('SELECT 1 FROM project_tasks t JOIN project_items i ON i.id = t.item_id WHERE i.project_id = ? AND t.assigned_to = ?').get(p.id, me.id)
+        || db.prepare('SELECT 1 FROM project_collaborators WHERE project_id = ? AND user_id = ?').get(p.id, me.id);
       if (!holder) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
     }
   }
