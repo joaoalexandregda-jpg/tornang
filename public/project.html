@@ -51,6 +51,7 @@
       <div class="pj-tabs" id="pjTabs">
         <button class="pj-tab active" data-tab="work">Trabalho</button>
         <button class="pj-tab" data-tab="files">Arquivos <span class="pj-tabcount" id="pjDocCount" hidden>0</span></button>
+        <button class="pj-tab" data-tab="notes">Anotações <span class="pj-tabcount" id="pjNoteCount" hidden>0</span></button>
         <button class="pj-tab" data-tab="activity">Atividade</button>
         <button class="pj-tab" data-tab="members">Membros</button>
       </div>
@@ -104,6 +105,22 @@ function fmtDate(d) { return d ? String(d).slice(0, 10).split('-').reverse().joi
 function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
 const HIST_LABELS = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados', docs_added: 'Documentos adicionados', doc_deleted: 'Documento excluído' };
 function fmtDateTime(s) { return s ? String(s).slice(0, 16).replace('T', ' ') : '—'; }
+function timeAgo(s) {
+  if (!s) return '—';
+  const d = new Date(s), diff = Math.floor((Date.now() - d.getTime()) / 1000);
+  if (isNaN(diff)) return String(s).slice(0, 16).replace('T', ' ');
+  if (diff < 60) return 'agora';
+  if (diff < 3600) return 'há ' + Math.floor(diff / 60) + 'min';
+  if (diff < 86400) return 'há ' + Math.floor(diff / 3600) + 'h';
+  if (diff < 172800) return 'ontem';
+  return String(s).slice(0, 10).split('-').reverse().join('/');
+}
+const NOTE_ICONS = { 'Problema mecânico': '🔧', 'Falta de material': '📦', 'Aguardando cliente': '⏳', 'Alerta geral': '⚠️', 'Emergência médica': '🚑', 'Incêndio': '🔥' };
+function updateNoteCount() {
+  const nc = document.getElementById('pjNoteCount');
+  nc.textContent = (PJ.notes || []).length;
+  nc.hidden = !(PJ.notes || []).length;
+}
 
 // ===== Estado da página =====
 const folhaId = Number(new URLSearchParams(location.search).get('id'));
@@ -180,6 +197,7 @@ function renderTab() {
   const el = document.getElementById('pjTabBody');
   if (currentTab === 'work') renderWorkTab(el);
   else if (currentTab === 'files') renderFilesTab(el);
+  else if (currentTab === 'notes') renderNotesTab(el);
   else if (currentTab === 'members') renderMembersTab(el);
   else renderActivityTab(el);
 }
@@ -272,22 +290,45 @@ function renderActivityCard() {
     ${h.length ? h.map(e => `<div class="pj-act-mini"><b>${esc(HIST_LABELS[e.action] || e.action)}</b>${e.worker_name ? ` <span class="pj-act-who">· ${esc(e.worker_name)}</span>` : ''}<div class="pj-act-time">${fmtDateTime(e.created_at)}</div></div>`).join('') : '<p class="empty">Nada ainda.</p>'}
     <button class="btn ghost small" style="margin-top:10px" onclick="switchTab('activity')">Ver histórico completo</button>`;
 }
-async function renderNotesCard() {
+function renderNotesCard() {
   const el = document.getElementById('pjNotesCard');
-  let notes = [];
-  try { notes = (await api('/api/projects/' + folhaId + '/notes')).notes || []; } catch (e) {}
-  el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Anotações</h2></div>
-    <textarea id="pjNoteText" rows="3" placeholder="Escreva uma anotação…" style="width:100%;border:1px solid #ECEEF2;border-radius:10px;padding:10px;font:inherit;font-size:12.5px;resize:vertical;box-sizing:border-box"></textarea>
-    <button class="btn primary small" style="margin-top:8px" onclick="saveNote()">Adicionar</button>
-    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
-      ${notes.map(n => `<div class="pj-note"><div class="pj-note-text">${esc(n.text || n.note || '')}</div><div class="pj-act-time">${esc(n.worker_name || '')}${n.worker_name ? ' · ' : ''}${fmtDateTime(n.created_at)}</div></div>`).join('') || '<p class="empty">Nenhuma anotação ainda.</p>'}
-    </div>`;
+  const notes = PJ.notes || [];
+  const last = notes.slice(0, 2);
+  el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Anotações</h2>
+    <button class="btn ghost small" onclick="switchTab('notes')">Ver todas</button></div>
+    ${last.length ? last.map(n => `<div class="pj-act-mini"><b>${esc(n.author_name || '?')}</b>${n.is_alert ? ` <span class="pj-note-alert">${NOTE_ICONS[n.alert_type] || '⚠️'}</span>` : ''}<div class="pj-note-text" style="font-size:11.5px;margin-top:2px">${esc((n.note || '').slice(0, 80))}${(n.note || '').length > 80 ? '…' : ''}</div></div>`).join('') : '<p class="empty">Nenhuma ainda.</p>'}`;
+}
+// ===== Aba Anotações =====
+let notesFilter = 'all';
+function renderNotesTab(el) {
+  const notes = PJ.notes || [];
+  const filtered = notesFilter === 'alerts' ? notes.filter(n => n.is_alert)
+    : notesFilter === 'chat' ? notes.filter(n => !n.is_alert) : notes;
+  const chip = (key, label) => `<button class="pj-chip ${notesFilter === key ? 'on' : ''}" onclick="notesFilter='${key}';renderTab()">${label}</button>`;
+  el.innerHTML = `
+    <div class="pj-section-head"><h2 class="pj-section-title">Anotações</h2>
+      <div class="pj-chips">${chip('all', 'Todas')}${chip('alerts', 'Alertas')}${chip('chat', 'Conversa')}</div></div>
+    <div class="pj-note-composer">
+      <textarea id="pjNoteText" rows="3" placeholder="Adicionar nota…"></textarea>
+      <button class="btn primary small" onclick="saveNote()">Enviar</button>
+    </div>
+    ${filtered.length ? filtered.map(n => `
+      <div class="pj-note-big ${n.is_alert ? 'is-alert' : ''}">
+        <div class="pj-note-head">
+          ${n.author_name ? avaHtml(n.author_name) : '<span class="pj-ava">?</span>'}
+          <div class="pj-note-meta"><b>${esc(n.author_name || '?')}</b>
+            <span class="pj-act-time" title="${esc(fmtDateTime(n.created_at))}">${timeAgo(n.created_at)}</span></div>
+          ${n.is_alert ? `<span class="pj-note-alert">${NOTE_ICONS[n.alert_type] || '⚠️'} ${esc(n.alert_type || 'Alerta')}</span>` : ''}
+          ${n.section_name ? `<span class="pj-task-sec">${esc(n.section_name)}</span>` : ''}
+        </div>
+        <div class="pj-note-text" style="font-size:13px">${esc(n.note || '')}</div>
+      </div>`).join('') : '<p class="empty">Nenhuma anotação ainda — a primeira pode ser sua.</p>'}`;
 }
 async function saveNote() {
   const t = document.getElementById('pjNoteText').value.trim();
   if (!t) return;
   try {
-    await api('/api/projects/' + folhaId + '/notes', { method: 'POST', body: JSON.stringify({ text: t }) });
+    await api('/api/projects/' + folhaId + '/notes', { method: 'POST', body: JSON.stringify({ note: t }) });
     await reload();
   } catch (err) { alert(err.message); }
 }
@@ -351,13 +392,16 @@ async function releaseFolha() {
 }
 async function reload() {
   const detail = await api('/api/projects/' + folhaId + '/detail');
-  PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [] };
-  try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) { PJ.history = PJ.history || []; }
+  PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [], history: PJ.history || [], notes: PJ.notes || [] };
+  try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) {}
+  try { PJ.notes = (await api('/api/projects/' + folhaId + '/notes')).notes || []; } catch (e) {}
+  pjSig = signature(PJ);
   renderHero();
-      renderMembersCard();
-    renderActivityCard();
-    renderNotesCard();
-    renderControlsCard();
+  renderMembersCard();
+  renderActivityCard();
+  renderNotesCard();
+  renderControlsCard();
+  updateNoteCount();
   renderTab();
 }
 
@@ -554,13 +598,16 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
   if (!folhaId) { location.href = 'manager.html'; return; }
   try {
     const detail = await api('/api/projects/' + folhaId + '/detail');
-    PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [] };
-    try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) { PJ.history = []; }
+    PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [], history: [], notes: [] };
+    try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) {}
+    try { PJ.notes = (await api('/api/projects/' + folhaId + '/notes')).notes || []; } catch (e) {}
+    pjSig = signature(PJ);
     renderHero();
     renderMembersCard();
     renderActivityCard();
     renderNotesCard();
     renderControlsCard();
+    updateNoteCount();
     renderTab();
   } catch (err) {
     document.getElementById('pjHero').innerHTML = '<p class="empty">Folha não encontrada. <a href="manager.html">Voltar para projetos</a>.</p>';
@@ -573,7 +620,8 @@ function signature(s) {
   const tasks = (s.items || []).flatMap(it => it.tasks || []);
   return JSON.stringify([s.p.status, s.p.priority, s.p.assigned_to, s.p.worker_name,
     (s.documents || []).map(d => d.id).join(','),
-    tasks.map(t => t.status + ':' + (t.assigned_name || '')).join(',')]);
+    tasks.map(t => t.status + ':' + (t.assigned_name || '')).join(','),
+    (s.notes || []).map(n => (n.note || '').length + ':' + (n.author_name || '')).join('|')]);
 }
 function pjBusy() {
   const ae = document.activeElement;
