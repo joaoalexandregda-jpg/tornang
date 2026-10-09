@@ -498,7 +498,7 @@ async function openOverview(id) {
       </div>
       ${acts || '<p class="empty">Sem atividade ainda.</p>'}
     </div>
-    <button class="btn primary" style="margin-top:24px;width:100%;justify-content:center" onclick="closeDrawer();openDetail(${id})">Abrir projeto completo →</button>`;
+    <button class="btn primary" style="margin-top:24px;width:100%;justify-content:center" onclick="closeDrawer();location.href='project.html?id=${id}'">Abrir projeto completo →</button>`;
   document.getElementById('drawerBackdrop').classList.remove('hidden');
   document.getElementById('drawer').classList.remove('hidden');
 }

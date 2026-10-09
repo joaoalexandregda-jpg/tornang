@@ -102,6 +102,8 @@ async function api(path, opts = {}) {
 }
 function fmtDate(d) { return d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—'; }
 function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
+const HIST_LABELS = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados', docs_added: 'Documentos adicionados', doc_deleted: 'Documento excluído' };
+function fmtDateTime(s) { return s ? String(s).slice(0, 16).replace('T', ' ') : '—'; }
 
 // ===== Estado da página =====
 const folhaId = Number(new URLSearchParams(location.search).get('id'));
@@ -141,7 +143,8 @@ function renderHero() {
       ${['completed', 'at_warehouse', 'delivered'].includes(p.status)
         ? (p.priority ? '<span class="pj-badge red">⚠️ Urgente</span>' : '')
         : `<button class="pj-badge ${p.priority ? 'red' : 'gray'} pj-pill-btn" onclick="togglePriority()" title="${p.priority ? 'Remover urgência' : 'Marcar como urgente'}">${p.priority ? '⚠️ Urgente' : 'Marcar urgente'}</button>`}
-      ${p.archived ? '<span class="pj-badge gray">🗄️ Arquivada</span>' : ''}
+          ${p.archived ? '<span class="pj-badge gray">🗄️ Arquivada</span>' : ''}
+      ${p.status === 'pending_release' ? '<button class="btn primary small" onclick="releaseFolha()">Liberar para produção</button>' : ''}
     </div>
     <div class="pj-hero-grid">
       <div>
@@ -234,7 +237,79 @@ function renderFilesTab(el) {
 }
 
 function renderActivityTab(el) {
-  el.innerHTML = '<p class="empty">A atividade chega no próximo passo.</p>';
+  const h = PJ.history || [];
+  const rows = h.map(e => `
+    <div class="pj-act">
+      <span class="pj-act-dot"></span>
+      <div class="pj-act-body">
+        <div class="pj-act-title">${esc(HIST_LABELS[e.action] || e.action)}${e.worker_name ? ` <span class="pj-act-who">· ${esc(e.worker_name)}</span>` : ''}</div>
+        ${e.notes ? `<div class="pj-act-notes">${esc(e.notes)}</div>` : ''}
+        <div class="pj-act-time">${fmtDateTime(e.created_at)}</div>
+      </div>
+    </div>`).join('');
+  el.innerHTML = `
+    <div class="pj-section-head"><h2 class="pj-section-title">Atividade</h2>
+      <button class="btn ghost small" onclick="downloadHistory()">⬇️ Baixar CSV</button></div>
+    ${rows || '<p class="empty">Sem atividade registrada ainda.</p>'}`;
+}
+async function downloadHistory() {
+  try {
+    const res = await fetch('/api/projects/' + folhaId + '/history/download', { headers: { 'Authorization': 'Bearer ' + token } });
+    if (!res.ok) return alert('Erro ao gerar o histórico.');
+    const blob = await res.blob();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'historico-' + folhaId + '.csv';
+    a.click();
+    URL.revokeObjectURL(a.href);
+  } catch (err) { alert(err.message); }
+}
+
+function renderActivityCard() {
+  const el = document.getElementById('pjActivityCard');
+  const h = (PJ.history || []).slice(0, 4);
+  el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Atividade recente</h2></div>
+    ${h.length ? h.map(e => `<div class="pj-act-mini"><b>${esc(HIST_LABELS[e.action] || e.action)}</b>${e.worker_name ? ` <span class="pj-act-who">· ${esc(e.worker_name)}</span>` : ''}<div class="pj-act-time">${fmtDateTime(e.created_at)}</div></div>`).join('') : '<p class="empty">Nada ainda.</p>'}
+    <button class="btn ghost small" style="margin-top:10px" onclick="switchTab('activity')">Ver histórico completo</button>`;
+}
+async function renderNotesCard() {
+  const el = document.getElementById('pjNotesCard');
+  let notes = [];
+  try { notes = (await api('/api/projects/' + folhaId + '/notes')).notes || []; } catch (e) {}
+  el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Anotações</h2></div>
+    <textarea id="pjNoteText" rows="3" placeholder="Escreva uma anotação…" style="width:100%;border:1px solid #ECEEF2;border-radius:10px;padding:10px;font:inherit;font-size:12.5px;resize:vertical;box-sizing:border-box"></textarea>
+    <button class="btn primary small" style="margin-top:8px" onclick="saveNote()">Adicionar</button>
+    <div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+      ${notes.map(n => `<div class="pj-note"><div class="pj-note-text">${esc(n.text || n.note || '')}</div><div class="pj-act-time">${esc(n.worker_name || '')}${n.worker_name ? ' · ' : ''}${fmtDateTime(n.created_at)}</div></div>`).join('') || '<p class="empty">Nenhuma anotação ainda.</p>'}
+    </div>`;
+}
+async function saveNote() {
+  const t = document.getElementById('pjNoteText').value.trim();
+  if (!t) return;
+  try {
+    await api('/api/projects/' + folhaId + '/notes', { method: 'POST', body: JSON.stringify({ text: t }) });
+    await reload();
+  } catch (err) { alert(err.message); }
+}
+function renderControlsCard() {
+  const el = document.getElementById('pjControlsCard');
+  const p = PJ.p;
+  el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Controles</h2></div>
+    <p class="hint" style="margin:0 0 12px">Arquivar mantém o registro. Excluir remove permanentemente.</p>
+    <div style="display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn ghost small" onclick="toggleArchive()">${p.archived ? '↩️ Restaurar' : '🗄️ Arquivar'}</button>
+      <button class="btn small pj-btn-danger" onclick="deleteFolha()">🗑️ Excluir</button>
+    </div>`;
+}
+async function toggleArchive() {
+  try {
+    await api('/api/projects/' + folhaId + (PJ.p.archived ? '/unarchive' : '/archive'), { method: 'POST' });
+    await reload();
+  } catch (err) { alert(err.message); }
+}
+async function deleteFolha() {
+  if (!confirm('Excluir esta folha para sempre? Os arquivos enviados vão para a pasta de excluídos no servidor, mas o histórico será apagado.')) return;
+  try { await api('/api/projects/' + folhaId, { method: 'DELETE' }); location.href = 'manager.html'; } catch (err) { alert(err.message); }
 }
 
 // ===== Upload e exclusão de documentos =====
@@ -271,12 +346,18 @@ async function togglePriority() {
     await reload();
   } catch (err) { alert(err.message); }
 }
+async function releaseFolha() {
+  try { await api('/api/projects/' + folhaId + '/release', { method: 'POST' }); await reload(); } catch (err) { alert(err.message); }
+}
 async function reload() {
   const detail = await api('/api/projects/' + folhaId + '/detail');
   PJ = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [] };
   try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) { PJ.history = PJ.history || []; }
   renderHero();
-  renderMembersCard();
+      renderMembersCard();
+    renderActivityCard();
+    renderNotesCard();
+    renderControlsCard();
   renderTab();
 }
 
@@ -477,6 +558,9 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
     try { const h = await api('/api/projects/' + folhaId + '/history'); PJ.history = h.history || []; } catch (e) { PJ.history = []; }
     renderHero();
     renderMembersCard();
+    renderActivityCard();
+    renderNotesCard();
+    renderControlsCard();
     renderTab();
   } catch (err) {
     document.getElementById('pjHero').innerHTML = '<p class="empty">Folha não encontrada. <a href="manager.html">Voltar para projetos</a>.</p>';
