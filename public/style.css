@@ -892,3 +892,7 @@ body > .tabs ~ .panel {
 .pj-member-stack { display: flex; flex-wrap: wrap; align-items: center; }
 .pj-ava-stack { width: 32px; height: 32px; font-size: 11.5px; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(32,36,51,.14); }
 .pj-ava-stack + .pj-ava-stack { margin-left: -9px; }
+
+/* membros alinhados à esquerda */
+.pj-member-card .pj-ava { margin-left: 0; }
+.pj-ava-stack { margin-left: 0; }
