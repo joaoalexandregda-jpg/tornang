@@ -926,3 +926,13 @@ body > .tabs ~ .panel {
 .pj-note-meta { display: flex; align-items: baseline; gap: 8px; min-width: 0; }
 .pj-note-meta b { font-size: 12.5px; color: #202433; }
 .pj-note-alert { margin-left: auto; font-size: 10.5px; font-weight: 800; color: #B45309; background: #FDEFCF; padding: 3px 10px; border-radius: 999px; white-space: nowrap; }
+
+/* cabeçalho da nota alinhado à esquerda */
+.pj-note-head .pj-ava { margin-left: 0; }
+
+/* preview de anotação no card lateral */
+.pj-note-mini { display: flex; gap: 8px; align-items: flex-start; padding: 8px 0; border-bottom: 1px solid #F0F1F4; }
+.pj-note-mini:last-of-type { border-bottom: none; }
+.pj-note-mini .pj-ava { margin-left: 0; width: 22px; height: 22px; font-size: 9px; flex-shrink: 0; }
+.pj-note-mini-body { min-width: 0; flex: 1; }
+.pj-note-author { font-size: 11.5px; font-weight: 700; color: #656B7A; }

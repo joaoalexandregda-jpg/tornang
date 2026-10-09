@@ -296,7 +296,7 @@ function renderNotesCard() {
   const last = notes.slice(0, 2);
   el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Anotações</h2>
     <button class="btn ghost small" onclick="switchTab('notes')">Ver todas</button></div>
-    ${last.length ? last.map(n => `<div class="pj-act-mini"><b>${esc(n.author_name || '?')}</b>${n.is_alert ? ` <span class="pj-note-alert">${NOTE_ICONS[n.alert_type] || '⚠️'}</span>` : ''}<div class="pj-note-text" style="font-size:11.5px;margin-top:2px">${esc((n.note || '').slice(0, 80))}${(n.note || '').length > 80 ? '…' : ''}</div></div>`).join('') : '<p class="empty">Nenhuma ainda.</p>'}`;
+    ${last.length ? last.map(n => `<div class="pj-note-mini">${n.author_name ? avaHtml(n.author_name) : '<span class="pj-ava">?</span>'}<div class="pj-note-mini-body"><div class="pj-note-author">${esc(n.author_name || '?')} <span class="pj-act-time">· ${timeAgo(n.created_at)}</span>${n.is_alert ? ` <span class="pj-note-alert">${NOTE_ICONS[n.alert_type] || '⚠️'}</span>` : ''}</div><div class="pj-note-text" style="font-size:11.5px;margin-top:2px">${esc((n.note || '').slice(0, 80))}${(n.note || '').length > 80 ? '…' : ''}</div></div></div>`).join('') : '<p class="empty">Nenhuma ainda.</p>'}`;
 }
 // ===== Aba Anotações =====
 let notesFilter = 'all';
