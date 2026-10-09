@@ -1360,17 +1360,29 @@ app.post('/api/emergency', auth, (req, res) => {
 app.get('/api/worker/section-queue', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
   const others = db.prepare(`
-    SELECT p.*, s.name AS section_name, u.name AS holder_name,
-      (SELECT GROUP_CONCAT(s2.name, ' + ') FROM project_route r2 JOIN sections s2 ON s2.id = r2.section_id
-       WHERE r2.project_id = p.id AND r2.step = r.step AND r2.section_id != r.section_id) AS parallel_with
-    FROM project_route r
-    JOIN projects p ON p.id = r.project_id
-    JOIN sections s ON s.id = r.section_id
-    LEFT JOIN users u ON u.id = r.assigned_to
-    WHERE p.company_id = ? AND p.status = 'in_progress' AND r.section_id = ?
-      AND r.status = 'active'
-      AND r.assigned_to IS NOT NULL AND r.assigned_to != ?
-    ORDER BY p.priority DESC, p.due_date ASC, p.created_at DESC`).all(req.user.company_id, req.user.section_id, req.user.id);
+    SELECT * FROM (
+      SELECT p.*, s.name AS section_name, u.name AS holder_name,
+        (SELECT GROUP_CONCAT(s2.name, ' + ') FROM project_route r2 JOIN sections s2 ON s2.id = r2.section_id
+         WHERE r2.project_id = p.id AND r2.step = r.step AND r2.section_id != r.section_id) AS parallel_with
+      FROM project_route r
+      JOIN projects p ON p.id = r.project_id
+      JOIN sections s ON s.id = r.section_id
+      LEFT JOIN users u ON u.id = r.assigned_to
+      WHERE p.company_id = ? AND p.status = 'in_progress' AND p.archived = 0 AND r.section_id = ?
+        AND r.status = 'active'
+        AND r.assigned_to IS NOT NULL AND r.assigned_to != ?
+      UNION
+      SELECT p.*, s.name AS section_name, tu.name AS holder_name, NULL AS parallel_with
+      FROM project_tasks t
+      JOIN project_items i ON i.id = t.item_id
+      JOIN projects p ON p.id = i.project_id
+      JOIN sections s ON s.id = t.section_id
+      JOIN users tu ON tu.id = t.assigned_to
+      WHERE p.company_id = ? AND p.status = 'in_progress' AND p.archived = 0 AND t.section_id = ?
+        AND t.assigned_to != ? AND t.status != 'done'
+        AND NOT EXISTS (SELECT 1 FROM project_route r3 WHERE r3.project_id = p.id AND r3.section_id = ? AND r3.status = 'active' AND r3.assigned_to IS NOT NULL)
+    ) GROUP BY id
+    ORDER BY priority DESC, due_date ASC, created_at DESC`).all(req.user.company_id, req.user.section_id, req.user.id, req.user.company_id, req.user.section_id, req.user.id, req.user.section_id);
   res.json({ others });
 });
 
@@ -1383,14 +1395,20 @@ app.post('/api/projects/:id/join-request', auth, (req, res) => {
   const route = db.prepare("SELECT * FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
   if (!route) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
   if (route.assigned_to === me.id) return res.status(400).json({ error: 'Esta folha já é sua.' });
-  if (!route.assigned_to) return res.status(400).json({ error: 'Esta folha está livre — assuma em vez de pedir.' });
+  let holderId = route.assigned_to;
+  if (!holderId) {
+    const th = db.prepare(`SELECT t.assigned_to AS id FROM project_tasks t JOIN project_items i ON i.id = t.item_id
+      WHERE i.project_id = ? AND t.section_id = ? AND t.assigned_to IS NOT NULL AND t.assigned_to != ? AND t.status != 'done' LIMIT 1`).get(p.id, me.section_id, me.id);
+    holderId = th ? th.id : null;
+  }
+  if (!holderId) return res.status(400).json({ error: 'Esta folha está livre — assuma em vez de pedir.' });
   if (db.prepare('SELECT 1 FROM project_collaborators WHERE project_id = ? AND user_id = ?').get(p.id, me.id))
     return res.status(400).json({ error: 'Você já participa desta folha.' });
   if (db.prepare("SELECT 1 FROM join_requests WHERE project_id = ? AND requester_id = ? AND status = 'pending'").get(p.id, me.id))
     return res.status(400).json({ error: 'Você já tem um pedido pendente nesta folha.' });
-  const jri = db.prepare('INSERT INTO join_requests (project_id, requester_id, holder_id) VALUES (?,?,?)').run(p.id, me.id, route.assigned_to);
+  const jri = db.prepare('INSERT INTO join_requests (project_id, requester_id, holder_id) VALUES (?,?,?)').run(p.id, me.id, holderId);
   db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id, ref_id) VALUES (?, ?, 'join_request', '🤝 Pedido de participação', ?, ?, ?)`)
-    .run(me.company_id, route.assigned_to, me.name + ' quer participar da folha ' + (p.name || p.client_name) + '.', p.id, jri.lastInsertRowid);
+    .run(me.company_id, holderId, me.name + ' quer participar da folha ' + (p.name || p.client_name) + '.', p.id, jri.lastInsertRowid);
   res.json({ ok: true });
 });
 
