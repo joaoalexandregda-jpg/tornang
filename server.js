@@ -498,7 +498,7 @@ app.get('/api/projects/:id/history/download', auth, (req, res) => {
 app.get('/api/worker/queue', auth, (req, res) => {
   if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
   const routed = db.prepare(`
-    SELECT p.*, s.name AS section_name, r.id AS route_id, r.step, r.assigned_to AS route_assigned,
+    SELECT p.*, s.name AS section_name, r.id AS route_id, r.step, r.assigned_to AS route_assigned, 1 AS can_finish,
       (SELECT GROUP_CONCAT(s2.name, ' + ') FROM project_route r2 JOIN sections s2 ON s2.id = r2.section_id
        WHERE r2.project_id = p.id AND r2.step = r.step AND r2.section_id != r.section_id) AS parallel_with,
       (SELECT MAX(step) FROM project_route WHERE project_id = p.id) AS max_step
@@ -515,6 +515,20 @@ app.get('/api/worker/queue', auth, (req, res) => {
     delete item.route_assigned;
     if (row.route_assigned === req.user.id || collabIds.includes(row.project_id)) mine.push(item);
     else if (!row.route_assigned) available.push(item);
+  }
+  // v5.6 W0.5: folhas onde sou colaborador entram em "Em andamento (minhas)" mesmo sem etapa ativa
+  const collabFolhas = db.prepare(`
+    SELECT p.*, s.name AS section_name, NULL AS route_id, NULL AS step, NULL AS parallel_with,
+      (SELECT MAX(step) FROM project_route WHERE project_id = p.id) AS max_step,
+      (SELECT COUNT(*) FROM project_route r2 WHERE r2.project_id = p.id AND r2.section_id = ? AND r2.status = 'active') AS can_finish
+    FROM project_collaborators pc
+    JOIN projects p ON p.id = pc.project_id
+    LEFT JOIN sections s ON s.id = p.current_section_id
+    WHERE pc.user_id = ? AND p.company_id = ? AND p.status = 'in_progress' AND p.archived = 0`)
+    .all(req.user.section_id, req.user.id, req.user.company_id);
+  for (const crow of collabFolhas) {
+    if (mine.some(m => m.id === crow.id && !m.type)) continue;
+    mine.push(crow);
   }
     // ---------- v5.0: tarefas da seção ----------
   const taskRows = db.prepare(`
@@ -1327,7 +1341,10 @@ app.post('/api/projects/:id/alert', auth, (req, res) => {
 
 app.get('/api/notifications', auth, (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
-  const nots = db.prepare(`SELECT * FROM notifications WHERE company_id = ? AND (user_id = ? OR (user_id IS NULL AND role = ?)) ORDER BY id DESC LIMIT 30`).all(me.company_id, me.id, me.role);
+  // v5.6 W0.5: sino autolimpante — só não lidas + pedidos de participação pendentes
+  const nots = db.prepare(`SELECT * FROM notifications WHERE company_id = ? AND (user_id = ? OR (user_id IS NULL AND role = ?))
+    AND (read = 0 OR (type = 'join_request' AND ref_id IN (SELECT id FROM join_requests WHERE status = 'pending')))
+    ORDER BY id DESC LIMIT 30`).all(me.company_id, me.id, me.role);
   const unread = db.prepare(`SELECT COUNT(*) c FROM notifications WHERE company_id = ? AND read = 0 AND (user_id = ? OR (user_id IS NULL AND role = ?))`)
     .get(me.company_id, me.id, me.role).c;
   res.json({ notifications: nots, unread });

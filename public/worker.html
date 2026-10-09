@@ -182,7 +182,7 @@ async function loadQueue() {
       ${p.parallel_with ? `<p>Em paralelo com: <span class="badge orange">${esc(p.parallel_with)}</span></p>` : ''}
       <div class="row-actions" style="margin-top:10px">
         <button class="btn ghost small" onclick="event.stopPropagation();openNotes(${p.id}, '${esc(p.name || p.client_name)}')">💬 Anotações</button>
-        <button class="btn primary small" onclick="event.stopPropagation();finish(${p.id})">Concluir e passar</button>
+        ${p.can_finish ? `<button class="btn primary small" onclick="event.stopPropagation();finish(${p.id})">Concluir e passar</button>` : ''}
       </div>
     </div>`;
   }).join('') : '<p class="empty">Você não tem folhas em andamento.</p>';
