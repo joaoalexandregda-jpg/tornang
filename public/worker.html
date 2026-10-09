@@ -390,8 +390,8 @@ async function renderDocsStrip() {
     const cards = documents.map(d => {
       const isImg = (d.mime_type || '').startsWith('image/');
       const isPdf = (d.mime_type || '').includes('pdf');
-      return `<div class="doc-card" data-name="${esc(d.original_name)}" data-url="/uploads/${esc(d.stored_name)}" data-type="${isImg ? 'img' : isPdf ? 'pdf' : 'other'}">
-        ${isImg ? `<img src="/uploads/${esc(d.stored_name)}" alt="">` : `<div class="doc-icon">${isPdf ? '📕' : '📄'}</div>`}
+      return `<div class="doc-card" data-name="${esc(d.original_name)}" data-url="/api/documents/${d.id}/file?token=${token}" data-type="${isImg ? 'img' : isPdf ? 'pdf' : 'other'}">
+        ${isImg ? `<img src="/api/documents/${d.id}/file?token=${token}" alt="" loading="lazy">` : `<div class="doc-icon">${isPdf ? '📕' : '📄'}</div>`}
         <p>${esc(d.original_name)}</p>
       </div>`;
     });
