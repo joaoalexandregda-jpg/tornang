@@ -1388,6 +1388,8 @@ app.get('/api/worker/section-queue', auth, (req, res) => {
       WHERE p.company_id = ? AND p.status = 'in_progress' AND p.archived = 0 AND r.section_id = ?
         AND r.status = 'active'
         AND r.assigned_to IS NOT NULL AND r.assigned_to != ?
+        AND NOT EXISTS (SELECT 1 FROM project_collaborators pc WHERE pc.project_id = p.id AND pc.user_id = ?)
+        AND NOT EXISTS (SELECT 1 FROM project_tasks t4 JOIN project_items i4 ON i4.id = t4.item_id WHERE i4.project_id = p.id AND t4.assigned_to = ? AND t4.status != 'done')
       UNION
       SELECT p.*, s.name AS section_name, tu.name AS holder_name, NULL AS parallel_with
       FROM project_tasks t
@@ -1398,8 +1400,12 @@ app.get('/api/worker/section-queue', auth, (req, res) => {
       WHERE p.company_id = ? AND p.status = 'in_progress' AND p.archived = 0 AND t.section_id = ?
         AND t.assigned_to != ? AND t.status != 'done'
         AND NOT EXISTS (SELECT 1 FROM project_route r3 WHERE r3.project_id = p.id AND r3.section_id = ? AND r3.status = 'active' AND r3.assigned_to IS NOT NULL)
+        AND NOT EXISTS (SELECT 1 FROM project_collaborators pc WHERE pc.project_id = p.id AND pc.user_id = ?)
+        AND NOT EXISTS (SELECT 1 FROM project_tasks t5 JOIN project_items i5 ON i5.id = t5.item_id WHERE i5.project_id = p.id AND t5.assigned_to = ? AND t5.status != 'done')
     ) GROUP BY id
-    ORDER BY priority DESC, due_date ASC, created_at DESC`).all(req.user.company_id, req.user.section_id, req.user.id, req.user.company_id, req.user.section_id, req.user.id, req.user.section_id);
+    ORDER BY priority DESC, due_date ASC, created_at DESC`).all(
+      req.user.company_id, req.user.section_id, req.user.id, req.user.id, req.user.id,
+      req.user.company_id, req.user.section_id, req.user.id, req.user.section_id, req.user.id, req.user.id);
   res.json({ others });
 });
 
