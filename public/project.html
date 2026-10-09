@@ -383,7 +383,7 @@ document.getElementById('pjModal').addEventListener('click', e => { if (e.target
 document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.getElementById('pjModal').hidden) closePjModal(); });
 
 // ===== Membros =====
-const MEMBER_ROLES = { created: 'Criou a folha', accepted: 'Assumiu a folha', task_accepted: 'Concluiu tarefas', task_done: 'Concluiu tarefas', finished: 'Concluiu a seção', passed: 'Passou a folha', released: 'Liberou a folha', route_updated: 'Ajustou a rota', items_added: 'Adicionou itens', docs_added: 'Adicionou documentos', doc_deleted: 'Excluiu documentos', assigned: 'Responsável atual' };
+
 const AVA_TINTS = [
   { bg: '#EAF0FE', fg: '#3859F6' },
   { bg: '#E8F7EE', fg: '#1D9E5F' },
@@ -402,66 +402,36 @@ function avaHtml(name, cls) {
   return `<span class="pj-ava ${cls || ''}" style="background:${t.bg};color:${t.fg}" title="${esc(name)}">${esc(memberInitials(name))}</span>`;
 }
 function memberInitials(name) { return name.trim().split(/\s+/).slice(0, 2).map(w => w[0].toUpperCase()).join(''); }
-function memberSet() {
+function memberData() {
   const map = new Map();
-  for (const h of PJ.history || []) {
-    if (!h.worker_name) continue;
-    if (!map.has(h.worker_name)) map.set(h.worker_name, new Set());
-    map.get(h.worker_name).add(h.action);
-  }
-  if (PJ.p.worker_name && !map.has(PJ.p.worker_name)) map.set(PJ.p.worker_name, new Set(['assigned']));
+  const ensure = n => { if (!map.has(n)) map.set(n, { sections: new Set(), creator: false }); return map.get(n); };
+  for (const h of PJ.history || []) if (h.worker_name) { if (h.action === 'created') ensure(h.worker_name).creator = true; else ensure(h.worker_name); }
+  for (const it of PJ.items || []) for (const t of it.tasks || []) if (t.assigned_name) ensure(t.assigned_name).sections.add(t.section_name || 'Sem seção');
+  if (PJ.p.worker_name) ensure(PJ.p.worker_name);
   return map;
 }
 function renderMembersCard() {
   const el = document.getElementById('pjMembersCard');
-  const names = [...memberSet().keys()];
-  const balls = names.slice(0, 6).map(n => avaHtml(n, 'pj-ava-lg')).join('');
+  const names = [...memberData().keys()];
+  const balls = names.map(n => avaHtml(n, 'pj-ava-stack')).join('');
   el.innerHTML = `<div class="pj-section-head" style="margin:0 0 12px"><h2 class="pj-section-title" style="font-size:14px">Membros</h2>
     <button class="btn ghost small" onclick="switchTab('members')">Ver todos</button></div>
-    ${balls ? `<div class="pj-member-balls">${balls}</div>` : '<p class="empty">Ninguém ainda.</p>'}
-    <p class="hint" style="margin:10px 0 0">${names.length} pessoa${names.length === 1 ? '' : 's'} envolvida${names.length === 1 ? '' : 's'}</p>`;
+    ${balls ? `<div class="pj-member-stack">${balls}</div>` : '<p class="empty">Ninguém ainda.</p>'}`;
 }
-function rolePills(acts) {
-  const seen = new Set();
-  const pills = [];
-  for (const a of acts) {
-    const label = MEMBER_ROLES[a];
-    if (!label || seen.has(label)) continue;
-    seen.add(label);
-    const cls = a === 'assigned' ? 'orange'
-      : (a === 'task_done' || a === 'finished') ? 'green'
-      : (a === 'docs_added' || a === 'doc_deleted' || a === 'items_added' || a === 'route_updated') ? 'gray'
-      : 'blue';
-    pills.push(`<span class="pj-role ${cls}">${esc(label)}</span>`);
-  }
-  return pills.join('');
-}
+
 function renderMembersTab(el) {
-  const map = memberSet();
-  const cards = [...map.entries()].map(([name, acts]) => `
+  const map = memberData();
+  const cards = [...map.entries()].map(([name, m]) => `
     <div class="pj-member-card">
       ${avaHtml(name, 'pj-ava-xl')}
       <div class="pj-member-info">
-        <div class="pj-member-name">${esc(name)}</div>
-        <div class="pj-member-pills">${rolePills(acts) || '<span class="pj-role gray">Participou da folha</span>'}</div>
+        <div class="pj-member-name">${esc(name)}${m.creator ? ' <span class="pj-creator-pill">Criador</span>' : ''}</div>
+        ${m.sections.size ? `<div class="pj-member-secs">${[...m.sections].map(esc).join(' · ')}</div>` : ''}
       </div>
     </div>`).join('');
-  const bySec = new Map();
-  for (const it of PJ.items || []) for (const t of it.tasks || []) {
-    if (!t.assigned_name) continue;
-    const key = t.section_name || 'Sem seção';
-    if (!bySec.has(key)) bySec.set(key, new Set());
-    bySec.get(key).add(t.assigned_name);
-  }
-  const secHtml = bySec.size ? [...bySec.entries()].map(([sec, people]) => `
-    <div class="pj-sec-group">
-      <div class="pj-sec-title">${esc(sec)}</div>
-      <div class="pj-member-balls">${[...people].map(n => avaHtml(n)).join('')}</div>
-    </div>`).join('') : '';
-  el.innerHTML = `
-    <div class="pj-section-head"><h2 class="pj-section-title">Membros do projeto</h2></div>
-    ${cards ? `<div class="pj-members-grid">${cards}</div>` : '<p class="empty">Ninguém trabalhou nesta folha ainda.</p>'}
-    ${secHtml ? `<div class="pj-section-head" style="margin-top:24px"><h2 class="pj-section-title" style="font-size:14px">Por seção</h2></div><div class="pj-sec-groups">${secHtml}</div>` : ''}`;
+  el.innerHTML = cards
+    ? '<div class="pj-section-head"><h2 class="pj-section-title">Membros do projeto</h2></div><div class="pj-members-grid">' + cards + '</div>'
+    : '<p class="empty">Ninguém trabalhou nesta folha ainda.</p>';
 }
 
 // ===== Chip do usuário =====

@@ -886,12 +886,9 @@ body > .tabs ~ .panel {
 .pj-member-info { min-width: 0; }
 .pj-member-name { font-weight: 800; font-size: 14px; color: #202433; }
 .pj-member-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; }
-.pj-role { font-size: 10.5px; font-weight: 800; padding: 3px 10px; border-radius: 999px; }
-.pj-role.blue { background: #EAF0FE; color: #3859F6; }
-.pj-role.green { background: #E8F7EE; color: #1D9E5F; }
-.pj-role.orange { background: #FEF3E6; color: #D97706; }
-.pj-role.gray { background: #F0F1F4; color: #656B7A; }
-.pj-sec-groups { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
-.pj-sec-group { border: 1px solid #ECEEF2; border-radius: 14px; padding: 14px 16px; background: #F8F9FB; }
-.pj-sec-title { font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #A1A5B0; margin-bottom: 10px; }
 .pj-member-balls { display: flex; flex-wrap: wrap; gap: 8px; }
+.pj-creator-pill { font-size: 9.5px; font-weight: 800; padding: 2px 8px; border-radius: 999px; background: #EAF0FE; color: #3859F6; vertical-align: 2px; margin-left: 4px; white-space: nowrap; }
+.pj-member-secs { font-size: 11.5px; font-weight: 600; color: #989CA9; margin-top: 3px; }
+.pj-member-stack { display: flex; flex-wrap: wrap; align-items: center; }
+.pj-ava-stack { width: 32px; height: 32px; font-size: 11.5px; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(32,36,51,.14); }
+.pj-ava-stack + .pj-ava-stack { margin-left: -9px; }
