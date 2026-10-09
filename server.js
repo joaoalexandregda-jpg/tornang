@@ -1416,6 +1416,31 @@ app.post('/api/projects/:id/join-request', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- Responder pedido de participação (aceitar/recusar) ----------
+app.post('/api/join-requests/:id/:action', auth, (req, res) => {
+  if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
+  const action = req.params.action;
+  if (!['accept', 'recuse'].includes(action)) return res.status(400).json({ error: 'Ação inválida.' });
+  const jr = db.prepare('SELECT * FROM join_requests WHERE id = ?').get(req.params.id);
+  if (!jr || jr.status !== 'pending') return res.status(404).json({ error: 'Pedido não encontrado.' });
+  if (jr.holder_id !== req.user.id) return res.status(403).json({ error: 'Apenas quem recebeu o pedido pode responder.' });
+  const p = db.prepare('SELECT * FROM projects WHERE id = ?').get(jr.project_id);
+  const label = p ? (p.name || p.client_name) : 'folha';
+  const tx = db.transaction(() => {
+    db.prepare('UPDATE join_requests SET status = ? WHERE id = ?').run(action === 'accept' ? 'accepted' : 'recused', jr.id);
+    if (action === 'accept') {
+      db.prepare('INSERT OR IGNORE INTO project_collaborators (project_id, user_id) VALUES (?,?)').run(jr.project_id, jr.requester_id);
+      db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)`)
+        .run(req.user.company_id, jr.requester_id, 'join_accepted', '✅ Pedido aceito', (req.user.name || '') + ' aceitou sua participação na folha ' + label + '.', jr.project_id);
+    } else {
+      db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)`)
+        .run(req.user.company_id, jr.requester_id, 'join_recused', '❌ Pedido recusado', (req.user.name || '') + ' recusou sua participação na folha ' + label + '.', jr.project_id);
+    }
+  });
+  tx();
+  res.json({ ok: true });
+});
+
 // ---------- Logout ----------
 app.post('/api/logout', auth, (req, res) => {
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.user.id);
