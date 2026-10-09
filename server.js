@@ -1274,7 +1274,10 @@ app.post('/api/projects/:id/notes', auth, (req, res) => {
   if (me.role !== 'manager') {
     if (!me.section_id) return res.status(403).json({ error: 'Você não pertence a uma seção.' });
     const active = db.prepare("SELECT 1 FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
-    if (!active) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+    if (!active) {
+      const holder = db.prepare('SELECT 1 FROM project_route WHERE project_id = ? AND assigned_to = ?').get(p.id, me.id);
+      if (!holder) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+    }
   }
   const info = db.prepare('INSERT INTO project_notes (project_id, section_id, user_id, author_name, note, is_alert, alert_type) VALUES (?,?,?,?,?,?,?)')
     .run(p.id, me.section_id || null, me.id, me.name, note || alertType || 'Alerta', isAlert, alertType);
@@ -1296,7 +1299,10 @@ app.post('/api/projects/:id/alert', auth, (req, res) => {
     if (me.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
     if (!me.section_id) return res.status(403).json({ error: 'Você não pertence a uma seção.' });
     const active = db.prepare("SELECT 1 FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
-    if (!active) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+    if (!active) {
+      const holder = db.prepare('SELECT 1 FROM project_route WHERE project_id = ? AND assigned_to = ?').get(p.id, me.id);
+      if (!holder) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+    }
   }
   const sec = me.section_id ? db.prepare('SELECT * FROM sections WHERE id = ?').get(me.section_id) : null;
   let context = me.name + (sec ? ' — Seção: ' + sec.name : '');

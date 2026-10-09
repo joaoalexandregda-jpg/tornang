@@ -255,7 +255,7 @@ function renderFilesTab(el) {
 }
 
 function renderActivityTab(el) {
-  const h = PJ.history || [];
+  const h = [...(PJ.history || [])].reverse();
   const rows = h.map(e => `
     <div class="pj-act">
       <span class="pj-act-dot"></span>
@@ -285,7 +285,7 @@ async function downloadHistory() {
 
 function renderActivityCard() {
   const el = document.getElementById('pjActivityCard');
-  const h = (PJ.history || []).slice(0, 4);
+  const h = [...(PJ.history || [])].reverse().slice(0, 4);
   el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Atividade recente</h2></div>
     ${h.length ? h.map(e => `<div class="pj-act-mini"><b>${esc(HIST_LABELS[e.action] || e.action)}</b>${e.worker_name ? ` <span class="pj-act-who">· ${esc(e.worker_name)}</span>` : ''}<div class="pj-act-time">${fmtDateTime(e.created_at)}</div></div>`).join('') : '<p class="empty">Nada ainda.</p>'}
     <button class="btn ghost small" style="margin-top:10px" onclick="switchTab('activity')">Ver histórico completo</button>`;
@@ -632,12 +632,13 @@ setInterval(async () => {
   if (document.hidden || pjBusy()) return;
   try {
     const detail = await api('/api/projects/' + folhaId + '/detail');
-    const next = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [], history: PJ.history || [] };
+    const next = { p: detail.project, documents: detail.documents || [], items: detail.items || [], sections: detail.sections || [], history: PJ.history || [], notes: PJ.notes || [] };
+    try { next.notes = (await api('/api/projects/' + folhaId + '/notes')).notes || []; } catch (e) {}
     const sig = signature(next);
     if (sig === pjSig) return;
     try { next.history = (await api('/api/projects/' + folhaId + '/history')).history || []; } catch (e) {}
     PJ = next; pjSig = sig;
-    renderHero(); renderMembersCard(); renderTab();
+    renderHero(); renderMembersCard(); renderActivityCard(); renderNotesCard(); renderControlsCard(); updateNoteCount(); renderTab();
   } catch (e) {}
 }, 3000);
 </script>
