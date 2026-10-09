@@ -1393,9 +1393,13 @@ app.post('/api/projects/:id/join-request', auth, (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   if (!me.section_id) return res.status(403).json({ error: 'Você não pertence a uma seção.' });
   const route = db.prepare("SELECT * FROM project_route WHERE project_id = ? AND section_id = ? AND status = 'active'").get(p.id, me.section_id);
-  if (!route) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
-  if (route.assigned_to === me.id) return res.status(400).json({ error: 'Esta folha já é sua.' });
-  let holderId = route.assigned_to;
+  const taskInMySection = db.prepare(`SELECT 1 FROM project_tasks t JOIN project_items i ON i.id = t.item_id
+    WHERE i.project_id = ? AND t.section_id = ? AND t.status != 'done' AND (t.assigned_to IS NOT NULL OR t.status = 'active') LIMIT 1`).get(p.id, me.section_id);
+  if (!route && !taskInMySection) return res.status(403).json({ error: 'Este projeto não está na sua seção agora.' });
+  const myTask = db.prepare(`SELECT 1 FROM project_tasks t JOIN project_items i ON i.id = t.item_id
+    WHERE i.project_id = ? AND t.section_id = ? AND t.assigned_to = ? AND t.status != 'done'`).get(p.id, me.section_id, me.id);
+  if (myTask || (route && route.assigned_to === me.id)) return res.status(400).json({ error: 'Esta folha já é sua.' });
+  let holderId = route ? route.assigned_to : null;
   if (!holderId) {
     const th = db.prepare(`SELECT t.assigned_to AS id FROM project_tasks t JOIN project_items i ON i.id = t.item_id
       WHERE i.project_id = ? AND t.section_id = ? AND t.assigned_to IS NOT NULL AND t.assigned_to != ? AND t.status != 'done' LIMIT 1`).get(p.id, me.section_id, me.id);
