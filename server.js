@@ -1060,7 +1060,7 @@ app.get('/api/projects/:id/detail', auth, (req, res) => {
   const sections = p.location_id
     ? db.prepare('SELECT id, name, position FROM sections WHERE company_id = ? AND location_id = ? ORDER BY position').all(req.user.company_id, p.location_id)
     : db.prepare('SELECT id, name, position FROM sections WHERE company_id = ? ORDER BY position').all(req.user.company_id);
-  const route = db.prepare('SELECT r.section_id, r.step, r.status, s.name FROM project_route r JOIN sections s ON s.id = r.section_id WHERE r.project_id = ? ORDER BY r.step, s.name').all(p.id);
+  const route = db.prepare('SELECT r.section_id, r.step, r.status, r.assigned_to, u.name AS assigned_name FROM project_route r JOIN sections s ON s.id = r.section_id LEFT JOIN users u ON u.id = r.assigned_to WHERE r.project_id = ? ORDER BY r.step, s.name').all(p.id);
     const items = db.prepare('SELECT * FROM project_items WHERE project_id = ? ORDER BY position, id').all(p.id);
   const tasks = db.prepare(`
     SELECT t.*, s.name AS section_name, u.name AS assigned_name, dw.name AS done_by_name
@@ -1407,6 +1407,22 @@ app.get('/api/worker/section-queue', auth, (req, res) => {
       req.user.company_id, req.user.section_id, req.user.id, req.user.id, req.user.id,
       req.user.company_id, req.user.section_id, req.user.id, req.user.section_id, req.user.id, req.user.id);
   res.json({ others });
+});
+
+// ---------- v5.7 tablet: miniaturas (primeira imagem) das folhas ----------
+app.get('/api/worker/previews', auth, (req, res) => {
+  if (req.user.role !== 'worker') return res.status(403).json({ error: 'Acesso restrito.' });
+  const ids = String(req.query.ids || '').split(',').map(Number).filter(Boolean).slice(0, 60);
+  if (!ids.length) return res.json({ previews: {} });
+  const marks = ids.map(() => '?').join(',');
+  const rows = db.prepare(`
+    SELECT d.project_id, MIN(d.id) AS doc_id
+    FROM project_documents d
+    WHERE d.project_id IN (${marks}) AND d.mime_type LIKE 'image/%'
+    GROUP BY d.project_id`).all(...ids);
+  const previews = {};
+  for (const r of rows) previews[r.project_id] = r.doc_id;
+  res.json({ previews });
 });
 
 app.post('/api/projects/:id/join-request', auth, (req, res) => {

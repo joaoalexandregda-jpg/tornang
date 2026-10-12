@@ -1,0 +1,498 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no">
+<meta name="theme-color" content="#DC2626">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<title>Tornang — Tablet</title>
+<link rel="stylesheet" href="/tablet.css">
+</head>
+<body class="tb-body">
+
+<!-- ===== TELA INICIAL ===== -->
+<div id="tbHome" class="tb-screen">
+  <button class="tb-emergency-strip" onclick="openEmergency()">🚨 EMERGÊNCIA — incêndio ou emergência médica</button>
+  <header class="tb-header">
+    <div>
+      <h1>FILA DE HOJE — <span id="tbSection">…</span></h1>
+      <div class="tb-agg" id="tbAgg">carregando…</div>
+    </div>
+    <div class="tb-header-actions">
+      <div class="tb-user" id="tbUser"></div>
+      <button class="tb-icon-btn" id="tbBell">🔔<span class="tb-badge-count" id="tbBellBadge" hidden></span></button>
+      <button class="tb-icon-btn" id="tbSound">🔊 Som</button>
+    </div>
+  </header>
+  <main class="tb-columns">
+    <section class="tb-col">
+      <h2>📥 NA FILA</h2>
+      <div class="tb-list" id="tbAvailable"></div>
+    </section>
+    <section class="tb-col">
+      <h2>🛠️ MINHAS</h2>
+      <div class="tb-list" id="tbMine"></div>
+    </section>
+  </main>
+</div>
+
+<!-- ===== TELA DE DETALHE (folha aberta) ===== -->
+<div id="tbDetail" class="tb-screen" hidden>
+  <button class="tb-back" id="tbBack">← Voltar</button>
+  <div class="tb-detail-scroll" id="tbDetailScroll">
+    <div class="tb-detail-head">
+      <span class="tb-accent" id="tbAccent"></span>
+      <div>
+        <h1 id="tbDetailTitle"></h1>
+        <span class="tb-badge">Em produção</span>
+      </div>
+    </div>
+    <div class="tb-meta" id="tbMeta"></div>
+    <div class="tb-timeline" id="tbTimeline"></div>
+    <h3 class="tb-docs-title">📎 Documentos</h3>
+    <div class="tb-docs" id="tbDocs"></div>
+    <p class="tb-swipe-hint">deslize para a próxima folha ›</p>
+  </div>
+  <div class="tb-detail-actions">
+    <button class="tb-btn-ghost" id="tbNotesBtn">💬 Anotações</button>
+    <button class="tb-btn-primary" id="tbFinishBtn">✅ CONCLUIR E PASSAR</button>
+  </div>
+  <button class="tb-emergency-fab" id="tbEmergFab" onclick="openEmergency()">🚨</button>
+</div>
+
+<!-- ===== Sino ===== -->
+<div class="tb-bell-panel" id="tbBellPanel" hidden></div>
+
+<!-- ===== Toast ===== -->
+<div class="tb-toast" id="tbToast" hidden></div>
+
+<!-- ===== Anotações ===== -->
+<div class="tb-overlay" id="tbNotesModal" hidden>
+  <div class="tb-modal">
+    <h3>💬 Anotações</h3>
+    <div class="tb-notes-list" id="notesList"></div>
+    <div class="tb-chips">
+      <button onclick="sendNote(true,'Problema mecânico')">⚠️ Problema mecânico</button>
+      <button onclick="sendNote(true,'Falta de material')">📦 Falta de material</button>
+      <button onclick="sendNote(true,'Aguardando cliente')">⏳ Aguardando cliente</button>
+    </div>
+    <textarea class="tb-notes-area" id="noteText" rows="3" placeholder="Escreva uma anotação sobre esta folha..."></textarea>
+    <div class="tb-modal-actions">
+      <button class="tb-btn-ghost" onclick="tbNotesModal.hidden = true">← Voltar</button>
+      <button class="tb-btn-primary" onclick="sendNote(false)">Salvar anotação</button>
+    </div>
+    <p class="tb-msg" id="notesMsg"></p>
+  </div>
+</div>
+
+<!-- ===== Emergência ===== -->
+<div class="tb-overlay" id="tbEmergModal" hidden>
+  <div class="tb-modal">
+    <h3>🚨 Emergência</h3>
+    <p>Selecione o tipo. Todos os gestores serão notificados imediatamente.</p>
+    <div class="tb-emerg-grid">
+      <button class="tb-emerg-med" onclick="sendEmergency('Emergência médica')">🚑 Emergência médica</button>
+      <button class="tb-emerg-fire" onclick="sendEmergency('Incêndio')">🔥 Incêndio</button>
+    </div>
+    <div class="tb-modal-actions">
+      <button class="tb-btn-ghost" onclick="tbEmergModal.hidden = true">Cancelar</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== Visualizador (estilo Drive) ===== -->
+<div class="tb-viewer" id="tbViewer" hidden>
+  <div class="tb-viewer-bar">
+    <b id="tbViewerName"></b>
+    <button class="tb-viewer-close" onclick="closeViewer()">✕ Fechar</button>
+  </div>
+  <div class="tb-viewer-body" id="tbViewerBody">
+    <button class="tb-viewer-nav tb-viewer-prev" onclick="viewerNav(-1)">‹</button>
+    <button class="tb-viewer-nav tb-viewer-next" onclick="viewerNav(1)">›</button>
+    <span class="tb-viewer-count" id="tbViewerCount"></span>
+  </div>
+</div>
+
+<script>
+const token = localStorage.getItem('token');
+if (!token) location.href = '/';
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+// Cores estáveis por cliente (linha do tempo) e por pessoa (avatares)
+const PALETTE = ['#2563EB', '#16A34A', '#7C3AED', '#EA580C', '#0D9488', '#D6336C'];
+function colorFor(name) {
+  let h = 0;
+  for (const ch of String(name || '?')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return PALETTE[h % PALETTE.length];
+}
+function daysLeft(due) {
+  if (!due) return null;
+  const d = new Date(due + 'T23:59:59');
+  return isNaN(d) ? null : Math.ceil((d - new Date()) / 86400000);
+}
+function countdown(due) {
+  const n = daysLeft(due);
+  if (n === null) return 'sem prazo';
+  if (n < 0) return 'ATRASADA';
+  if (n === 0) return 'hoje';
+  if (n === 1) return 'faltam 1 dia';
+  return 'faltam ' + n + ' dias';
+}
+const isLate = p => (daysLeft(p.due_date) ?? 1) < 0;
+
+// Som
+let soundOn = localStorage.getItem('tbSound') !== 'off';
+function playAlert(times = 2) {
+  if (!soundOn) return;
+  try {
+    const ctx = playAlert.ctx || (playAlert.ctx = new (window.AudioContext || window.webkitAudioContext)());
+    for (let i = 0; i < times; i++) {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.type = 'sine'; o.frequency.value = 880;
+      const t0 = ctx.currentTime + i * 0.35;
+      g.gain.setValueAtTime(0.001, t0);
+      g.gain.exponentialRampToValueAtTime(0.25, t0 + 0.03);
+      g.gain.exponentialRampToValueAtTime(0.001, t0 + 0.3);
+      o.connect(g).connect(ctx.destination);
+      o.start(t0); o.stop(t0 + 0.32);
+    }
+  } catch (e) {}
+}
+document.addEventListener('pointerdown', () => { try { playAlert.ctx = playAlert.ctx || new (window.AudioContext || window.webkitAudioContext)(); playAlert.ctx.resume(); } catch (e) {} }, { once: true });
+function renderSound() { $('tbSound').textContent = soundOn ? '🔊 Som' : '🔇 Som'; $('tbSound').classList.toggle('tb-sound-on', soundOn); }
+$('tbSound').addEventListener('click', () => { soundOn = !soundOn; localStorage.setItem('tbSound', soundOn ? 'on' : 'off'); renderSound(); });
+
+// Estado
+let me = null, mySectionName = '';
+let available = [], mine = [], jobCache = {};
+const previewCache = {};
+let knownAvailable = null;
+let current = null; // folha aberta no detalhe
+let bellData = [];
+
+async function loadMe() {
+  try {
+    const d = await api('/api/me');
+    me = d.user || d.me || d;
+    const secs = d.sections || [];
+    if (me && me.section_id) { const s = secs.find(x => x.id === me.section_id); if (s) mySectionName = s.name; }
+    if (me && me.name) $('tbUser').innerHTML = '<span class="tb-ava" style="background:' + colorFor(me.name) + '">' + esc(me.name[0]) + '</span>' + esc(me.name.split(' ')[0]);
+  } catch (e) {}
+}
+
+// ===== Fila =====
+async function loadQueue() {
+  const data = await api('/api/worker/queue');
+  available = data.available || [];
+  mine = data.mine || [];
+  available.concat(mine).forEach(p => jobCache[p.id] = p);
+
+  // miniaturas (primeira imagem de cada folha) — só busca as que faltam
+  const need = [...new Set(available.concat(mine).map(p => p.id))].filter(id => previewCache[id] === undefined);
+  if (need.length) {
+    try { Object.assign(previewCache, (await api('/api/worker/previews?ids=' + need.join(','))).previews || {}); } catch (e) {}
+  }
+
+  const sec = (available[0] || mine[0] || {}).section_name;
+  if (sec) mySectionName = sec;
+  $('tbSection').textContent = mySectionName || '—';
+
+  const late = available.concat(mine).filter(isLate).length;
+  $('tbAgg').innerHTML = available.length + ' na fila · ' + mine.length + ' minhas · ' +
+    (late ? '<b>' + late + ' atrasada' + (late > 1 ? 's' : '') + '</b>' : 'nenhuma atrasada');
+
+  // detecção de nova folha: beep + toast + pulso
+  const idsNow = available.map(p => String(p.id)).sort().join(',');
+  const newIds = new Set();
+  if (knownAvailable !== null && idsNow !== knownAvailable) {
+    const prev = new Set(knownAvailable ? knownAvailable.split(',') : []);
+    available.forEach(p => { if (!prev.has(String(p.id))) newIds.add(p.id); });
+    if (newIds.size) {
+      const first = available.find(p => newIds.has(p.id));
+      showToast('🔔 Nova folha disponível — ' + (first.name || first.client_name));
+      playAlert(3);
+      document.title = '📥 NOVA FOLHA — Tornang';
+    }
+  }
+  knownAvailable = idsNow;
+
+  // render preservando a rolagem de cada coluna
+  const savA = $('tbAvailable').scrollTop, savM = $('tbMine').scrollTop;
+  $('tbAvailable').innerHTML = available.length ? available.map(p => cardHtml(p, 'available', newIds.has(p.id))).join('') : '<p class="tb-empty">Nenhuma folha na fila agora.</p>';
+  $('tbMine').innerHTML = mine.length ? mine.map(p => cardHtml(p, 'mine', false)).join('') : '<p class="tb-empty">Você não tem folhas em andamento.</p>';
+  $('tbAvailable').scrollTop = savA;
+  $('tbMine').scrollTop = savM;
+}
+
+function cardHtml(p, kind, isNew) {
+  const color = colorFor(p.client_name);
+  const docId = previewCache[p.id];
+  const thumb = docId
+    ? '<img class="tb-thumb" src="/api/documents/' + docId + '/file?token=' + token + '" alt="" loading="lazy">'
+    : '<div class="tb-thumb-placeholder">📄</div>';
+  const nm = p.name || p.project_name || '';
+  const title = esc(p.client_name) + (nm ? ' — ' + esc(nm) : '');
+  const extra = p.type === 'task' ? ' · ' + esc(p.task_name || '') : '';
+  const openCall = ' onclick="openDetail(' + p.id + ')"';
+  const btn = kind === 'available'
+    ? '<button class="tb-btn tb-btn-assumir" onclick="event.stopPropagation();' + (p.type === 'task' ? 'acceptTask(' + p.task_id + ')' : 'accept(' + p.id + ')') + ')">ASSUMIR</button>'
+    : '<button class="tb-btn tb-btn-abrir" onclick="event.stopPropagation();openDetail(' + p.id + ')">ABRIR</button>';
+  return '<div class="tb-card' + (isNew ? ' tb-new' : '') + '"' + (kind === 'mine' ? openCall : '') + '>' +
+    '<span class="tb-chip" style="background:' + color + '"></span>' + thumb +
+    '<h3>' + title + '</h3>' +
+    '<p class="tb-count' + (isLate(p) ? ' late' : '') + '">' + (isLate(p) ? '⚠️ ' : '') + esc(countdown(p.due_date)) + extra + '</p>' +
+    btn + '</div>';
+}
+
+async function accept(id) {
+  try { await api('/api/projects/' + id + '/accept', { method: 'POST' }); playAlert(1); loadQueue(); }
+  catch (err) { alert(err.message); }
+}
+async function acceptTask(taskId) {
+  try { await api('/api/tasks/' + taskId + '/accept', { method: 'POST' }); playAlert(1); loadQueue(); }
+  catch (err) { alert(err.message); }
+}
+
+// ===== Detalhe =====
+async function openDetail(id) {
+  const item = jobCache[id] || {};
+  current = {
+    id,
+    type: item.type === 'task' ? 'task' : 'folha',
+    taskId: item.task_id || null,
+    item,
+    listIds: mine.map(p => p.id),
+    index: mine.findIndex(p => p.id === id),
+    docs: []
+  };
+  $('tbHome').hidden = true;
+  $('tbDetail').hidden = false;
+  $('tbDetailScroll').scrollTop = 0;
+  $('tbDocs').innerHTML = '<p class="tb-empty">Carregando…</p>';
+  try {
+    const d = await api('/api/projects/' + id + '/detail');
+    renderDetail(d);
+  } catch (err) { alert(err.message); closeDetail(); }
+}
+
+function renderDetail(d) {
+  if (!current || current.id !== d.project.id) return; // usuário já navegou para outra folha
+  const p = d.project;
+  $('tbAccent').style.background = colorFor(p.client_name);
+  $('tbDetailTitle').textContent = p.client_name + (p.name ? ' — ' + p.name : '');
+  const who = p.worker_name || '—';
+  $('tbMeta').innerHTML =
+    '<div><span class="lbl">Cliente:</span>' + esc(p.client_name) + '</div>' +
+    '<div><span class="lbl">Prazo:</span>' + esc(p.due_date || 'sem prazo') + (p.due_date ? ' — ' + esc(countdown(p.due_date)) : '') + '</div>' +
+    '<div><span class="lbl">Seção:</span>' + esc(p.section_name || mySectionName || '—') + '</div>' +
+    '<div class="tb-who"><span class="lbl">Responsável:</span><span class="tb-ava" style="background:' + colorFor(who) + '">' + esc(who[0] || '?') + '</span>' + esc(who) + '</div>';
+
+  const rows = (d.route || []).slice().sort((a, b) => a.step - b.step || String(a.name || '').localeCompare(String(b.name || '')));
+  $('tbTimeline').innerHTML = rows.map(r => {
+    const cls = r.status === 'done' ? 'done' : r.status === 'active' ? 'current' : '';
+    const dot = r.status === 'done' ? '✓' : r.status === 'active' ? '●' : '';
+    const sub = r.status === 'done' ? 'Concluída' : r.status === 'active' ? 'Em andamento' : 'Pendente';
+    let chip = '';
+    if (r.status === 'active') chip = r.assigned_to
+      ? '<span class="tb-ok-chip">👤 ' + esc(r.assigned_name || 'assumida') + '</span>'
+      : '<span class="tb-warn">⏳ Ninguém aceitou ainda</span>';
+    else if (r.status === 'done' && r.assigned_name) chip = '<span class="tb-ok-chip">✓ ' + esc(r.assigned_name) + '</span>';
+    return '<div class="tb-step ' + cls + '"><div class="tb-dot">' + dot + '</div><div class="tb-step-info"><b>' + esc(r.name || 'Seção') + '</b><small>' + sub + '</small>' + chip + '</div></div>';
+  }).join('');
+
+  current.docs = d.documents || [];
+  $('tbDocs').innerHTML = current.docs.length ? current.docs.map((doc, i) => {
+    const isImg = (doc.mime_type || '').startsWith('image/');
+    const isPdf = (doc.mime_type || '').includes('pdf');
+    const inner = isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + token + '" alt="" loading="lazy">' : '<span>' + (isPdf ? '📕' : '📄') + '</span>';
+    return '<div class="tb-doc-card" onclick="openViewer(' + i + ')"><div class="tb-doc-thumb">' + inner + '</div><p class="tb-doc-name">' + esc(doc.original_name) + '</p></div>';
+  }).join('') : '<p class="tb-empty">Nenhum documento nesta folha.</p>';
+
+  const fb = $('tbFinishBtn');
+  if (current.type === 'task') { fb.hidden = false; fb.textContent = '✅ CONCLUIR TAREFA'; }
+  else if (current.item && current.item.can_finish) { fb.hidden = false; fb.textContent = '✅ CONCLUIR E PASSAR'; }
+  else fb.hidden = true;
+}
+
+function closeDetail() { current = null; $('tbDetail').hidden = true; $('tbHome').hidden = false; loadQueue().catch(() => {}); }
+$('tbBack').addEventListener('click', closeDetail);
+
+// Deslizar entre as folhas (coluna MINHAS)
+let touchX = null, touchY = null;
+$('tbDetail').addEventListener('touchstart', e => { touchX = e.touches[0].clientX; touchY = e.touches[0].clientY; }, { passive: true });
+$('tbDetail').addEventListener('touchend', e => {
+  if (touchX === null || !current) return;
+  const dx = e.changedTouches[0].clientX - touchX;
+  const dy = e.changedTouches[0].clientY - touchY;
+  touchX = null;
+  if (Math.abs(dx) < 70 || Math.abs(dy) > 50) return;
+  const next = dx < 0 ? current.index + 1 : current.index - 1;
+  if (next < 0 || next >= current.listIds.length) return;
+  openDetail(current.listIds[next]);
+}, { passive: true });
+
+// Concluir
+$('tbFinishBtn').addEventListener('click', () => {
+  if (!current) return;
+  if (current.type === 'task') finishTask(current.taskId); else finishFolha(current.id);
+});
+async function finishFolha(id) {
+  const job = jobCache[id];
+  const isLast = job && job.max_step != null && Number(job.step) === Number(job.max_step);
+  if (!confirm('Concluir esta folha?')) return;
+  let destination = null;
+  if (isLast) destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronta para entrega ao cliente') ? 'warehouse' : 'client';
+  try {
+    const data = await api('/api/projects/' + id + '/finish', { method: 'POST', body: JSON.stringify({ destination }) });
+    if (data.completed) alert(destination === 'client' ? '🚚 Folha pronta para entrega ao cliente!' : '📦 Folha enviada ao armazém!');
+    else if (data.waiting) alert('⏳ Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
+    else alert('✅ Folha enviada para: ' + data.next);
+    closeDetail();
+  } catch (err) { alert(err.message); }
+}
+async function finishTask(taskId) {
+  try {
+    const info = await api('/api/tasks/' + taskId + '/next');
+    let destination = null;
+    if (info.completes_project) destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronto para entrega ao cliente') ? 'warehouse' : 'client';
+    const data = await api('/api/tasks/' + taskId + '/finish', { method: 'POST', body: JSON.stringify({ destination, next_worker_id: null }) });
+    alert('✅ Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
+    closeDetail();
+  } catch (err) { alert(err.message); }
+}
+
+// ===== Visualizador =====
+let viewIndex = 0;
+function openViewer(i) { viewIndex = i; renderViewer(); $('tbViewer').hidden = false; }
+function renderViewer() {
+  const doc = current && current.docs[viewIndex];
+  if (!doc) return closeViewer();
+  $('tbViewerName').textContent = doc.original_name;
+  const isImg = (doc.mime_type || '').startsWith('image/');
+  const isPdf = (doc.mime_type || '').includes('pdf');
+  $('tbViewerBody').innerHTML =
+    '<button class="tb-viewer-nav tb-viewer-prev" onclick="viewerNav(-1)">‹</button>' +
+    (isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + token + '" alt="">'
+      : isPdf ? '<iframe src="/api/documents/' + doc.id + '/file?token=' + token + '"></iframe>'
+      : '<p style="color:#fff;font-size:18px">Este tipo de arquivo não pode ser exibido aqui.</p>') +
+    '<button class="tb-viewer-nav tb-viewer-next" onclick="viewerNav(1)">›</button>' +
+    '<span class="tb-viewer-count" id="tbViewerCount">' + (viewIndex + 1) + ' / ' + current.docs.length + '</span>';
+}
+function viewerNav(d) { const n = viewIndex + d; if (current && n >= 0 && n < current.docs.length) { viewIndex = n; renderViewer(); } }
+function closeViewer() { $('tbViewer').hidden = true; $('tbViewerBody').innerHTML = ''; }
+
+// ===== Anotações =====
+$('tbNotesBtn').addEventListener('click', openNotes);
+async function openNotes() {
+  if (!current) return;
+  $('notesMsg').textContent = '';
+  $('noteText').value = '';
+  $('notesList').innerHTML = '<p class="tb-empty">Carregando…</p>';
+  $('tbNotesModal').hidden = false;
+  try { renderNotesList((await api('/api/projects/' + current.id + '/notes')).notes || []); }
+  catch (err) { $('notesMsg').textContent = err.message; }
+}
+function renderNotesList(notes) {
+  $('notesList').innerHTML = notes.length ? notes.map(n =>
+    '<div class="tb-note ' + (n.is_alert ? 'alert' : 'normal') + '"><b>' + (n.is_alert ? '⚠️' : '💬') + ' ' + esc(n.author_name || '?') + (n.is_alert && n.alert_type ? ' — ' + esc(n.alert_type) : '') + '</b>' +
+    (n.note ? '<p>' + esc(n.note) + '</p>' : '') +
+    '<time>' + esc((n.created_at || '').slice(0, 16)) + '</time></div>'
+  ).join('') : '<p class="tb-empty">Nenhuma anotação ainda.</p>';
+}
+async function sendNote(isAlert, alertType) {
+  const note = $('noteText').value.trim();
+  if (!note && !isAlert) { $('notesMsg').textContent = 'Escreva a anotação.'; return; }
+  try {
+    await api('/api/projects/' + current.id + '/notes', { method: 'POST', body: JSON.stringify({ note, is_alert: isAlert, alert_type: alertType }) });
+    $('noteText').value = '';
+    $('notesMsg').textContent = isAlert ? '⚠️ Alerta enviado ao gestor.' : 'Anotação salva.';
+    renderNotesList((await api('/api/projects/' + current.id + '/notes')).notes || []);
+  } catch (err) { $('notesMsg').textContent = err.message; }
+}
+
+// ===== Emergência =====
+function openEmergency() { $('tbEmergModal').hidden = false; }
+async function sendEmergency(type) {
+  try {
+    await api('/api/emergency', { method: 'POST', body: JSON.stringify({ type, project_id: current ? current.id : null }) });
+    $('tbEmergModal').hidden = true;
+    alert('🚨 ' + type + ' enviada. Todos os gestores foram notificados.');
+  } catch (err) { alert(err.message); }
+}
+
+// ===== Sino =====
+async function loadBell() {
+  try {
+    const d = await api('/api/notifications');
+    bellData = d.notifications || [];
+    const b = $('tbBellBadge');
+    if (d.unread > 0) { b.hidden = false; b.textContent = d.unread; } else b.hidden = true;
+    if (!$('tbBellPanel').hidden) renderBell();
+  } catch (e) {}
+}
+function renderBell() {
+  $('tbBellPanel').innerHTML = bellData.length ? bellData.map(n => {
+    const isJoin = n.type === 'join_request' && n.ref_id;
+    return '<div class="tb-notif"><b>' + esc(n.title) + '</b>' + (n.body ? '<p>' + esc(n.body) + '</p>' : '') +
+      (isJoin ? '<div class="tb-notif-actions"><button class="tb-accept" onclick="answerJoin(' + n.ref_id + ',\'accept\')">✅ Aceitar</button><button class="tb-recuse" onclick="answerJoin(' + n.ref_id + ',\'recuse\')">❌ Recusar</button></div>' : '') +
+      '<time>' + esc((n.created_at || '').slice(0, 16)) + '</time></div>';
+  }).join('') : '<div class="tb-bell-empty">Sem notificações por enquanto.</div>';
+}
+$('tbBell').addEventListener('click', async () => {
+  const panel = $('tbBellPanel');
+  panel.hidden = !panel.hidden;
+  if (!panel.hidden) {
+    renderBell();
+    try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
+    $('tbBellBadge').hidden = true;
+  }
+});
+document.addEventListener('click', e => {
+  const p = $('tbBellPanel');
+  if (!p.hidden && !$('tbBell').contains(e.target) && !p.contains(e.target)) p.hidden = true;
+});
+async function answerJoin(refId, action) {
+  try { await api('/api/join-requests/' + refId + '/' + action, { method: 'POST' }); await loadBell(); loadQueue().catch(() => {}); }
+  catch (err) { alert(err.message); }
+}
+
+// ===== Toast =====
+let toastTimer = null;
+function showToast(msg) {
+  const t = $('tbToast');
+  t.textContent = msg;
+  t.hidden = false;
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => { t.hidden = true; }, 5000);
+}
+
+// ESC fecha na ordem
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!$('tbViewer').hidden) return closeViewer();
+  if (!$('tbEmergModal').hidden) return ($('tbEmergModal').hidden = true);
+  if (!$('tbNotesModal').hidden) return ($('tbNotesModal').hidden = true);
+  if (!$('tbBellPanel').hidden) return ($('tbBellPanel').hidden = true);
+  if (!$('tbDetail').hidden) return closeDetail();
+});
+
+// Início
+renderSound();
+loadMe();
+async function loop() {
+  try { await loadQueue(); } catch (e) {}
+  try { await loadBell(); } catch (e) {}
+}
+loop();
+setInterval(loop, 3000);
+</script>
+</body>
+</html>
