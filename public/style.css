@@ -936,3 +936,95 @@ body > .tabs ~ .panel {
 .pj-note-mini .pj-ava { margin-left: 0; width: 22px; height: 22px; font-size: 9px; flex-shrink: 0; }
 .pj-note-mini-body { min-width: 0; flex: 1; }
 .pj-note-author { font-size: 11.5px; font-weight: 700; color: #656B7A; }
+
+/* ============================================================
+   W1 — Popup da folha (worker) — desktop — Conceito 3 "Duas Colunas"
+   Tema do lado do gestor: azul primário, títulos pretos, modal branco
+   ============================================================ */
+
+/* Backdrop escurecido */
+.jb-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, .55); backdrop-filter: blur(3px); display: flex; align-items: center; justify-content: center; z-index: 90; padding: 24px; }
+.jb-overlay[hidden] { display: none; }
+
+/* Modal — duas colunas */
+.jb-modal { background: #fff; border-radius: 18px; width: min(1080px, 100%); max-height: calc(100vh - 48px); box-shadow: 0 24px 64px rgba(15, 23, 42, .25); display: flex; flex-direction: column; overflow: hidden; }
+.jb-body { display: flex; flex: 1; min-height: 0; }
+
+/* Coluna esquerda — informações (45%) */
+.jb-left { flex: 0 0 45%; min-width: 0; min-height: 0; overflow-y: auto; padding: 22px 24px 20px; display: flex; flex-direction: column; border-right: 1px solid #F0F1F4; }
+
+/* Coluna direita — documentos (55%) */
+.jb-right { flex: 1; min-width: 0; min-height: 0; overflow-y: auto; padding: 22px 24px 20px; display: flex; flex-direction: column; background: #FAFBFC; }
+
+/* Cabeçalho (dentro da coluna esquerda) */
+.jb-head { display: flex; align-items: flex-start; gap: 10px; margin-bottom: 8px; }
+.jb-head h3 { margin: 0; font-size: 20px; font-weight: 800; color: #202433; letter-spacing: -.2px; line-height: 1.25; }
+.jb-badge { font-size: 11px; font-weight: 800; color: #1D4ED8; background: #EAF0FE; padding: 4px 10px; border-radius: 999px; white-space: nowrap; margin-top: 3px; }
+.jb-close { margin-left: auto; border: none; background: #F3F4F6; color: #656B7A; width: 32px; height: 32px; border-radius: 10px; font-size: 16px; cursor: pointer; flex-shrink: 0; }
+.jb-close:hover { background: #ECEEF2; color: #202433; }
+
+/* Metadados empilhados */
+.jb-meta-list { display: flex; flex-direction: column; gap: 9px; padding: 14px 0; border-top: 1px solid #F0F1F4; border-bottom: 1px solid #F0F1F4; margin-bottom: 4px; }
+.jb-meta-line { display: flex; align-items: center; gap: 8px; font-size: 13.5px; font-weight: 700; color: #202433; }
+.jb-meta-line .lbl { color: #9AA1B0; min-width: 96px; }
+
+/* Avatares — mesma paleta de 6 cores do project.html */
+.jb-ava { width: 24px; height: 24px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font-size: 10px; font-weight: 800; color: #fff; flex-shrink: 0; }
+.jb-ava.c0 { background: #3859F6; }
+.jb-ava.c1 { background: #D6336C; }
+.jb-ava.c2 { background: #0D9488; }
+.jb-ava.c3 { background: #F59E0B; }
+.jb-ava.c4 { background: #7C3AED; }
+.jb-ava.c5 { background: #64748B; }
+.jb-online { width: 8px; height: 8px; border-radius: 50%; background: #22C55E; display: inline-block; }
+
+/* Linha do tempo VERTICAL */
+.jb-vtimeline { margin: 16px 0 4px; }
+.jb-vstep { display: flex; gap: 12px; position: relative; padding-bottom: 18px; }
+.jb-vstep::before { content: ''; position: absolute; left: 11px; top: 26px; bottom: 0; width: 2px; background: #E5E7EB; }
+.jb-vstep:last-child { padding-bottom: 0; }
+.jb-vstep:last-child::before { display: none; }
+.jb-vdot { width: 24px; height: 24px; border-radius: 50%; background: #D1D5DB; color: #fff; display: flex; align-items: center; justify-content: center; font-size: 12px; font-weight: 800; flex-shrink: 0; position: relative; z-index: 1; }
+.jb-vstep.done .jb-vdot { background: #16A34A; }
+.jb-vstep.done::before { background: #16A34A; }
+.jb-vstep.current .jb-vdot { background: #2563EB; box-shadow: 0 0 0 4px rgba(37, 99, 235, .15); }
+.jb-vstep-info b { display: block; font-size: 14px; font-weight: 800; color: #202433; }
+.jb-vstep-info small { font-size: 12px; color: #9AA1B0; font-weight: 700; }
+.jb-vstep.current .jb-vstep-info b { color: #2563EB; }
+.jb-warn { display: inline-block; margin-top: 4px; font-size: 10.5px; font-weight: 800; color: #B45309; background: #FDEFCF; padding: 2px 8px; border-radius: 999px; }
+.jb-ok-chip { display: inline-block; margin-top: 4px; font-size: 10.5px; font-weight: 800; color: #166534; background: #DCFCE7; padding: 2px 8px; border-radius: 999px; }
+
+/* Equipe trabalhando na folha */
+.jb-team { display: flex; align-items: center; gap: 8px; margin: 14px 0 4px; }
+.jb-team-label { font-size: 12px; font-weight: 700; color: #656B7A; }
+.jb-team-more { font-size: 10.5px; font-weight: 800; color: #656B7A; background: #F3F4F6; border-radius: 999px; padding: 3px 8px; }
+
+/* Ações empilhadas no pé da coluna esquerda */
+.jb-left-actions { margin-top: auto; padding-top: 16px; display: flex; flex-direction: column; gap: 10px; }
+.jb-btn { border: none; border-radius: 12px; padding: 12px 20px; font: inherit; font-size: 14px; font-weight: 800; cursor: pointer; width: 100%; }
+.jb-btn-ghost { background: #F3F4F6; color: #202433; }
+.jb-btn-ghost:hover { background: #ECEEF2; }
+.jb-btn-primary { background: #2563EB; color: #fff; }
+.jb-btn-primary:hover { background: #1D4ED8; }
+
+/* Documentos — grade grande (2 colunas) */
+.jb-docs-title { font-size: 14px; font-weight: 800; color: #202433; margin: 0 0 12px; flex-shrink: 0; }
+.jb-docs-grid { flex: 1; min-height: 0; display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; align-content: start; }
+.jb-doc-card { background: #fff; border: 1px solid #ECEEF2; border-radius: 12px; padding: 10px; cursor: pointer; }
+.jb-doc-card:hover { border-color: #2563EB; }
+.jb-doc-thumb { height: 150px; border-radius: 8px; background: #F3F4F6; display: flex; align-items: center; justify-content: center; font-size: 34px; overflow: hidden; margin-bottom: 8px; }
+.jb-doc-thumb img { width: 100%; height: 100%; object-fit: cover; }
+.jb-doc-name { font-size: 12px; font-weight: 700; color: #374151; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; margin: 0; }
+.jb-doc-size { font-size: 11px; color: #9AA1B0; font-weight: 700; margin: 2px 0 0; }
+
+/* Upload — só no desktop */
+.jb-upload { border: 1.5px dashed #C9CEDA; border-radius: 12px; padding: 16px; display: flex; align-items: center; justify-content: center; gap: 8px; color: #656B7A; font-size: 13px; font-weight: 700; cursor: pointer; background: #fff; margin-top: 12px; flex-shrink: 0; }
+.jb-upload:hover { border-color: #2563EB; color: #2563EB; }
+
+/* Telas estreitas: colunas empilham */
+@media (max-width: 860px) {
+  .jb-body { flex-direction: column; overflow-y: auto; }
+  .jb-left { flex: none; overflow: visible; border-right: none; border-bottom: 1px solid #F0F1F4; }
+  .jb-right { overflow: visible; }
+  .jb-docs-grid { grid-template-columns: 1fr; }
+}
