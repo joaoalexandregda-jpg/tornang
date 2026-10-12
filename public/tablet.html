@@ -241,11 +241,12 @@ function cardHtml(p, kind, isNew) {
   const nm = p.name || p.project_name || '';
   const title = esc(p.client_name) + (nm ? ' — ' + esc(nm) : '');
   const extra = p.task_id ? ' · ' + esc(p.task_name || '') : '';
-  const openCall = ' onclick="openDetail(' + p.id + ')"';
+  const action = p.task_id ? 'acceptTask(' + Number(p.task_id) + ')' : 'accept(' + Number(p.id) + ')';
+  const openCall = kind === 'mine' ? ' onclick="openDetail(' + Number(p.id) + ')"' : '';
   const btn = kind === 'available'
-    ? '<button class="tb-btn tb-btn-assumir" onclick="event.stopPropagation();' + (p.task_id ? 'acceptTask(' + p.task_id + ')' : 'accept(' + p.id + ')') + ')">ASSUMIR</button>'
-    : '<button class="tb-btn tb-btn-abrir" onclick="event.stopPropagation();openDetail(' + p.id + ')">ABRIR</button>';
-  return '<div class="tb-card' + (isNew ? ' tb-new' : '') + '"' + (kind === 'mine' ? openCall : '') + '>' +
+    ? '<button class="tb-btn tb-btn-assumir" onclick="event.stopPropagation();' + action + '">ASSUMIR</button>'
+    : '<button class="tb-btn tb-btn-abrir" onclick="event.stopPropagation();openDetail(' + Number(p.id) + ')">ABRIR</button>';
+  return '<div class="tb-card' + (isNew ? ' tb-new' : '') + '"' + openCall + '>' +
     '<div class="tb-card-media"><span class="tb-chip" style="background:' + color + '"></span>' + thumb + '</div>' +
     '<div class="tb-card-info"><h3>' + title + '</h3>' +
     '<p class="tb-count' + (isLate(p) ? ' late' : '') + '">' + (isLate(p) ? '⚠️ ' : '') + esc(countdown(p.due_date)) + extra + '</p>' +
