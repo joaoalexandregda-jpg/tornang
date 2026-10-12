@@ -240,16 +240,16 @@ function cardHtml(p, kind, isNew) {
     : '<div class="tb-thumb-placeholder">📄</div>';
   const nm = p.name || p.project_name || '';
   const title = esc(p.client_name) + (nm ? ' — ' + esc(nm) : '');
-  const extra = p.type === 'task' ? ' · ' + esc(p.task_name || '') : '';
+  const extra = p.task_id ? ' · ' + esc(p.task_name || '') : '';
   const openCall = ' onclick="openDetail(' + p.id + ')"';
   const btn = kind === 'available'
-    ? '<button class="tb-btn tb-btn-assumir" onclick="event.stopPropagation();' + (p.type === 'task' ? 'acceptTask(' + p.task_id + ')' : 'accept(' + p.id + ')') + ')">ASSUMIR</button>'
+    ? '<button class="tb-btn tb-btn-assumir" onclick="event.stopPropagation();' + (p.task_id ? 'acceptTask(' + p.task_id + ')' : 'accept(' + p.id + ')') + ')">ASSUMIR</button>'
     : '<button class="tb-btn tb-btn-abrir" onclick="event.stopPropagation();openDetail(' + p.id + ')">ABRIR</button>';
   return '<div class="tb-card' + (isNew ? ' tb-new' : '') + '"' + (kind === 'mine' ? openCall : '') + '>' +
-    '<span class="tb-chip" style="background:' + color + '"></span>' + thumb +
-    '<h3>' + title + '</h3>' +
+    '<div class="tb-card-media"><span class="tb-chip" style="background:' + color + '"></span>' + thumb + '</div>' +
+    '<div class="tb-card-info"><h3>' + title + '</h3>' +
     '<p class="tb-count' + (isLate(p) ? ' late' : '') + '">' + (isLate(p) ? '⚠️ ' : '') + esc(countdown(p.due_date)) + extra + '</p>' +
-    btn + '</div>';
+    btn + '</div></div>';
 }
 
 async function accept(id) {
@@ -266,7 +266,7 @@ async function openDetail(id) {
   const item = jobCache[id] || {};
   current = {
     id,
-    type: item.type === 'task' ? 'task' : 'folha',
+    type: item.task_id ? 'task' : 'folha',
     taskId: item.task_id || null,
     item,
     listIds: mine.map(p => p.id),

@@ -38,14 +38,16 @@ button { font: inherit; cursor: pointer; }
 .tb-empty { color: #9CA3AF; font-size: 16px; font-weight: 700; padding: 18px 4px; }
 
 /* Container do projeto — retangular fixo, texto GRANDE */
-.tb-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; padding: 14px; flex-shrink: 0; }
+.tb-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; padding: 14px; flex-shrink: 0; display: flex; gap: 14px; align-items: stretch; }
+.tb-card-media { flex-shrink: 0; display: flex; flex-direction: column; gap: 6px; }
+.tb-card-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 .tb-chip { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-bottom: 6px; }
 .tb-thumb { width: 170px; height: 170px; max-width: 100%; object-fit: cover; border-radius: 10px; background: #F3F4F6; display: block; }
 .tb-thumb-placeholder { width: 170px; height: 170px; max-width: 100%; border-radius: 10px; background: #F3F4F6; display: flex; align-items: center; justify-content: center; font-size: 34px; }
-.tb-card h3 { margin: 10px 0 2px; font-size: 20px; font-weight: 800; line-height: 1.2; letter-spacing: -.2px; }
-.tb-count { font-size: 15px; font-weight: 700; color: #6B7280; margin: 0 0 12px; }
+.tb-card h3 { margin: 2px 0 4px; font-size: 23px; font-weight: 800; line-height: 1.2; letter-spacing: -.2px; }
+.tb-count { font-size: 16px; font-weight: 700; color: #6B7280; margin: 0 0 12px; }
 .tb-count.late { color: #DC2626; font-weight: 800; }
-.tb-btn { display: block; width: 100%; border: none; border-radius: 12px; padding: 15px 18px; font-size: 17px; font-weight: 800; letter-spacing: .3px; }
+.tb-btn { display: block; width: 100%; border: none; border-radius: 12px; padding: 15px 18px; font-size: 17px; font-weight: 800; letter-spacing: .3px; margin-top: auto; }
 .tb-btn-assumir { background: #16A34A; color: #fff; }
 .tb-btn-assumir:active { background: #128A3E; }
 .tb-btn-abrir { background: #fff; color: #111827; border: 2px solid #111827; }
