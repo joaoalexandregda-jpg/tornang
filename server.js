@@ -1480,6 +1480,14 @@ app.post('/api/join-requests/:id/:action', auth, (req, res) => {
   res.json({ ok: true });
 });
 
+// ---------- v5.7: sessão atual (tablet e futuras telas) ----------
+app.get('/api/me', auth, (req, res) => {
+  const u = db.prepare('SELECT id, name, role, section_id, company_id FROM users WHERE id = ?').get(req.user.id);
+  if (!u) return res.status(404).json({ error: 'Usuário não encontrado.' });
+  const sections = db.prepare('SELECT id, name FROM sections WHERE company_id = ? ORDER BY position').all(req.user.company_id);
+  res.json({ user: u, sections });
+});
+
 // ---------- Logout ----------
 app.post('/api/logout', auth, (req, res) => {
   db.prepare('DELETE FROM sessions WHERE user_id = ?').run(req.user.id);

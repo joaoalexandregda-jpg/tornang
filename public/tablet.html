@@ -166,7 +166,7 @@ function playAlert(times = 2) {
     }
   } catch (e) {}
 }
-document.addEventListener('pointerdown', () => { try { playAlert.ctx = playAlert.ctx || new (window.AudioContext || window.webkitAudioContext)(); playAlert.ctx.resume(); } catch (e) {} }, { once: true });
+document.addEventListener('pointerdown', () => { try { playAlert.ctx = playAlert.ctx || new (window.AudioContext || window.webkitAudioContext)(); playAlert.ctx.resume(); } catch (e) {} });
 function renderSound() { $('tbSound').textContent = soundOn ? '🔊 Som' : '🔇 Som'; $('tbSound').classList.toggle('tb-sound-on', soundOn); }
 $('tbSound').addEventListener('click', () => { soundOn = !soundOn; localStorage.setItem('tbSound', soundOn ? 'on' : 'off'); renderSound(); });
 
