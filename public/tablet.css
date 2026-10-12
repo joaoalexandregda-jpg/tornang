@@ -40,8 +40,8 @@ button { font: inherit; cursor: pointer; }
 /* Container do projeto — retangular fixo, texto GRANDE */
 .tb-card { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; padding: 14px; flex-shrink: 0; }
 .tb-chip { display: inline-block; width: 14px; height: 14px; border-radius: 4px; margin-bottom: 6px; }
-.tb-thumb { width: 100%; height: 120px; object-fit: cover; border-radius: 10px; background: #F3F4F6; display: block; }
-.tb-thumb-placeholder { width: 100%; height: 120px; border-radius: 10px; background: #F3F4F6; display: flex; align-items: center; justify-content: center; font-size: 34px; }
+.tb-thumb { width: 170px; height: 170px; max-width: 100%; object-fit: cover; border-radius: 10px; background: #F3F4F6; display: block; }
+.tb-thumb-placeholder { width: 170px; height: 170px; max-width: 100%; border-radius: 10px; background: #F3F4F6; display: flex; align-items: center; justify-content: center; font-size: 34px; }
 .tb-card h3 { margin: 10px 0 2px; font-size: 20px; font-weight: 800; line-height: 1.2; letter-spacing: -.2px; }
 .tb-count { font-size: 15px; font-weight: 700; color: #6B7280; margin: 0 0 12px; }
 .tb-count.late { color: #DC2626; font-weight: 800; }
