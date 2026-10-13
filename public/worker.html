@@ -830,5 +830,45 @@ jbEl('jbOverlay').addEventListener('click', e => { if (e.target === e.currentTar
   update();
 })();
 </script>
+<script>
+// ===== v5.9: banner de emergência (manager) =====
+(async () => {
+  const token = localStorage.getItem('token');
+  if (!token) return;
+  let lastEmergId = Number(sessionStorage.getItem('lastEmergId') || 0);
+  const beep = () => { try {
+    const ctx = new (window.AudioContext || window.webkitAudioContext)();
+    [0, 0.35, 0.7].forEach(t => {
+      const o = ctx.createOscillator(), g = ctx.createGain();
+      o.frequency.value = 880; o.type = 'square'; o.connect(g); g.connect(ctx.destination);
+      g.gain.setValueAtTime(0.25, ctx.currentTime + t);
+      g.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + t + 0.25);
+      o.start(ctx.currentTime + t); o.stop(ctx.currentTime + t + 0.25);
+    });
+  } catch (e) {} };
+  const check = async () => {
+    try {
+      const res = await fetch('/api/notifications', { headers: { 'Authorization': 'Bearer ' + token } });
+      const { notifications } = await res.json();
+      const emg = (notifications || []).find(n => n.type === 'emergency' && !n.read && n.id > lastEmergId);
+      if (!emg) return;
+      lastEmergId = emg.id; sessionStorage.setItem('lastEmergId', String(lastEmergId));
+      let banner = document.getElementById('emgBanner');
+      if (!banner) {
+        banner = document.createElement('div');
+        banner.id = 'emgBanner'; banner.className = 'emg-banner';
+        document.body.prepend(banner);
+      }
+      banner.innerHTML = '<div><b>' + emg.title + '</b><span> ' + (emg.body || '') + '</span></div><button id="emgAck">✕ Entendido</button>';
+      banner.hidden = false; beep();
+      document.getElementById('emgAck').addEventListener('click', async () => {
+        banner.hidden = true;
+        try { await fetch('/api/notifications/' + emg.id + '/read', { method: 'POST', headers: { 'Authorization': 'Bearer ' + token } }); } catch (e) {}
+      });
+    } catch (e) {}
+  };
+  check(); setInterval(check, 20000);
+})();
+</script>
 </body>
 </html>

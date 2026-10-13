@@ -408,6 +408,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
       db.prepare('UPDATE projects SET current_section_id = ? WHERE id = ?').run(first ? first.section_id : null, projectId);
       db.prepare('UPDATE projects SET assigned_to = ? WHERE id = ?').run(req.user.id, projectId);
       db.prepare('INSERT INTO project_history (project_id, worker_id, action) VALUES (?,?,?)').run(projectId, req.user.id, 'created');
+      if (first) notifySection(req.user.company_id, first.section_id, '📥 Nova folha na sua seção', String(client_name).trim() + (String(name || '').trim() ? ' — ' + String(name).trim() : '') + ' acabou de entrar na fila.', projectId);
     });
     tx();
     return res.json({ ok: true, id: projectId });
@@ -434,6 +435,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
     });
     db.prepare('UPDATE projects SET assigned_to = ? WHERE id = ?').run(req.user.id, projectId);
     db.prepare('INSERT INTO project_history (project_id, worker_id, section_id, action) VALUES (?,?,?,?)').run(projectId, req.user.id, steps[0][0], 'created');
+    notifySection(req.user.company_id, steps[0][0], '📥 Nova folha na sua seção', String(client_name).trim() + (String(name || '').trim() ? ' — ' + String(name).trim() : '') + ' acabou de entrar na fila.', projectId);
   });
   tx();
   res.json({ ok: true, id: projectId });
@@ -617,6 +619,9 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
   const tx = db.transaction(() => {
     if (next) {
       db.prepare("UPDATE projects SET current_section_id = ?, assigned_to = NULL, updated_at = datetime('now') WHERE id = ?").run(next.id, p.id);
+      const doneSec = db.prepare('SELECT name FROM sections WHERE id = ?').get(p.current_section_id);
+      notifySection(p.company_id, next.id, '📥 Nova folha na sua seção', (p.name || p.client_name) + ' chegou em ' + next.name + '.', p.id);
+      notifyManagers(p.company_id, 'step_done', '✅ Etapa concluída', req.user.name + ' concluiu ' + (p.name || p.client_name) + (doneSec ? ' em ' + doneSec.name : '') + '.', p.id);
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, p.current_section_id, req.user.id, 'finished');
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, next.id, req.user.id, 'passed');
     } else {
@@ -1340,8 +1345,30 @@ app.post('/api/projects/:id/alert', auth, (req, res) => {
   res.json({ ok: true, id: info.lastInsertRowid });
 });
 
+// ---------- v5.9: gatilhos de notificação ----------
+function notifyUser(companyId, userId, type, title, body, projectId) {
+  db.prepare('INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)')
+    .run(companyId, userId, type, title, body, projectId || null);
+}
+function notifySection(companyId, sectionId, title, body, projectId) {
+  const workers = db.prepare("SELECT id FROM users WHERE company_id = ? AND role = 'worker' AND section_id = ? AND active = 1").all(companyId, sectionId);
+  for (const w of workers) notifyUser(companyId, w.id, 'section_arrival', title, body, projectId);
+}
+function notifyManagers(companyId, type, title, body, projectId) {
+  db.prepare("INSERT INTO notifications (company_id, role, type, title, body, project_id) VALUES (?, 'manager', ?, ?, ?, ?)")
+    .run(companyId, type, title, body, projectId || null);
+}
+
 app.get('/api/notifications', auth, (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
+  // v5.9: folhas atrasadas → avisa gestores (1 aviso por folha a cada 20h)
+  if (me.role === 'manager') {
+    const lateFolhas = db.prepare("SELECT id, name, client_name, due_date FROM projects WHERE company_id = ? AND status = 'in_progress' AND archived = 0 AND due_date IS NOT NULL AND due_date != '' AND due_date < date('now')").all(me.company_id);
+    for (const lp of lateFolhas) {
+      const already = db.prepare("SELECT 1 FROM notifications WHERE project_id = ? AND type = 'late' AND created_at >= datetime('now', '-20 hours')").get(lp.id);
+      if (!already) notifyManagers(me.company_id, 'late', '⚠️ Folha atrasada', (lp.name || lp.client_name) + ' passou do prazo (' + lp.due_date + ').', lp.id);
+    }
+  }
   // v5.6 W0.5: sino autolimpante — só não lidas + pedidos de participação pendentes
   const nots = db.prepare(`SELECT * FROM notifications WHERE company_id = ? AND (user_id = ? OR (user_id IS NULL AND role = ?))
     AND (read = 0 OR (type = 'join_request' AND ref_id IN (SELECT id FROM join_requests WHERE status = 'pending')))
@@ -1355,6 +1382,11 @@ app.post('/api/notifications/read', auth, (req, res) => {
   const me = db.prepare('SELECT * FROM users WHERE id = ?').get(req.user.id);
   db.prepare(`UPDATE notifications SET read = 1 WHERE company_id = ? AND read = 0 AND (user_id = ? OR (user_id IS NULL AND role = ?))`)
     .run(me.company_id, me.id, me.role);
+  res.json({ ok: true });
+});
+
+app.post('/api/notifications/:id/read', auth, (req, res) => {
+  db.prepare('UPDATE notifications SET read = 1 WHERE id = ? AND company_id = ?').run(req.params.id, req.user.company_id);
   res.json({ ok: true });
 });
 

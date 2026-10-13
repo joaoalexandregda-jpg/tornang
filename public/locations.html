@@ -237,50 +237,9 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
   location.href = 'index.html';
 });
 
-// ===== Sino: notificações reais =====
-(async () => {
-  try {
-    const { notifications, unread } = await api('/api/notifications');
-    const badge = document.getElementById('bellBadge');
-    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
-    const panel = document.getElementById('notifPanel');
-    if (panel && notifications.length) {
-      panel.innerHTML = notifications.map(n => `
-        <div class="notif-item ${n.read ? '' : 'unread'}">
-          <b>${esc(n.title)}</b>
-          <p>${esc(n.body || '')}</p>
-          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
-        </div>`).join('');
-      panel.addEventListener('click', async () => {
-        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
-        if (badge) { badge.textContent = '0'; badge.hidden = true; }
-      }, { once: true });
-    }
-  } catch (e) {}
-})();
 
-// ===== Sino: notificações reais =====
-(async () => {
-  try {
-    const { notifications, unread } = await api('/api/notifications');
-    const badge = document.getElementById('bellBadge');
-    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
-    const panel = document.getElementById('notifPanel');
-    if (panel && notifications.length) {
-      panel.innerHTML = notifications.map(n => `
-        <div class="notif-item ${n.read ? '' : 'unread'}">
-          <b>${esc(n.title)}</b>
-          <p>${esc(n.body || '')}</p>
-          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
-        </div>`).join('');
-      panel.addEventListener('click', async () => {
-        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
-        if (badge) { badge.textContent = '0'; badge.hidden = true; }
-      }, { once: true });
-    }
-  } catch (e) {}
-})();
 
 </script>
+<script src="/bell.js"></script>
 </body>
 </html>
