@@ -372,16 +372,7 @@ let jobProjectId = null;
 function openJob(id) {
   const p = jobCache[id];
   if (!p) return;
-  jobProjectId = id;
-  document.getElementById('jobTitle').textContent = p.client_name + (p.name ? ' — ' + p.name : '');
-  document.getElementById('jobMeta').innerHTML = `
-    <div class="meta-cell"><span class="meta-label">Cliente</span><b>${esc(p.client_name)}</b></div>
-    <div class="meta-cell"><span class="meta-label">Prazo</span><b>${esc(p.due_date || '—')}</b></div>
-    <div class="meta-cell"><span class="meta-label">Seção</span><b>${esc(p.section_name || '—')}</b></div>
-    <div class="meta-cell"><span class="meta-label">Responsável</span><b>${esc(user.name || '—')}</b></div>`;
-  document.getElementById('docsMsg').textContent = '';
-  renderDocsStrip();
-  jobModal.hidden = false;
+  jbOpen(id, !!p.can_finish, p.task_id || null);
 }
 
 async function renderDocsStrip() {
@@ -538,6 +529,272 @@ document.addEventListener('click', () => { document.title = 'Trabalhador — Tor
 loadBell();
 loadQueue();
 loadHistory();
+</script>
+<!-- ===== W1: Popup da folha (worker — desktop) ===== -->
+<div class="jb-overlay" id="jbOverlay" hidden>
+  <div class="jb-modal">
+    <div class="jb-body">
+      <div class="jb-left">
+        <div class="jb-head">
+          <h3 id="jbTitle">Carregando…</h3>
+          <span class="jb-badge">Em produção</span>
+          <button class="jb-close" onclick="jbClose()">✕</button>
+        </div>
+        <div class="jb-meta-list" id="jbMeta"></div>
+        <div class="jb-vtimeline" id="jbTimeline"></div>
+        <div class="jb-team" id="jbTeam"></div>
+        <div class="jb-left-actions">
+          <button class="jb-btn jb-btn-ghost" id="jbNotesBtn">💬 Anotações</button>
+          <button class="jb-btn jb-btn-primary" id="jbFinishBtn">✅ Concluir e passar</button>
+        </div>
+      </div>
+      <div class="jb-right">
+        <p class="jb-docs-title">📎 Documentos</p>
+        <div class="jb-docs-grid" id="jbDocs"></div>
+        <div class="jb-upload" onclick="jbUploadTrigger()">⬆️ Clique ou arraste seu arquivo</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Anotações -->
+<div class="jb-overlay" id="jbNotesOverlay" hidden>
+  <div class="jb-modal jb-notes-modal">
+    <div class="jb-head">
+      <h3>💬 Anotações</h3>
+      <button class="jb-close" onclick="jbNotesClose()">✕</button>
+    </div>
+    <div class="jb-notes-list" id="jbNotesList"></div>
+    <div class="jb-chips">
+      <button onclick="jbSendNote(true,'Problema mecânico')">⚠️ Problema mecânico</button>
+      <button onclick="jbSendNote(true,'Falta de material')">📦 Falta de material</button>
+      <button onclick="jbSendNote(true,'Aguardando cliente')">⏳ Aguardando cliente</button>
+    </div>
+    <textarea class="jb-notes-area" id="jbNoteText" rows="3" placeholder="Escreva uma anotação sobre esta folha..."></textarea>
+    <div class="jb-modal-actions">
+      <button class="jb-btn jb-btn-ghost" onclick="jbNotesClose()">← Voltar</button>
+      <button class="jb-btn jb-btn-primary" onclick="jbSendNote(false)">Salvar anotação</button>
+    </div>
+    <p class="jb-msg" id="jbNotesMsg"></p>
+  </div>
+</div>
+
+<!-- Visualizador -->
+<div class="jb-viewer" id="jbViewer" hidden>
+  <div class="jb-viewer-bar">
+    <b id="jbViewerName"></b>
+    <button class="jb-viewer-close" onclick="jbViewerClose()">✕ Fechar</button>
+  </div>
+  <div class="jb-viewer-body" id="jbViewerBody"></div>
+</div>
+<script>
+// ============================================================
+// W1 — Popup da folha (worker — desktop) — v5.8
+// Endpoints idênticos aos já testados no tablet.
+// ============================================================
+const JB_TOKEN = localStorage.getItem('token');
+let jbCurrent = null;
+
+async function jbApi(path, opts = {}) {
+  const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + JB_TOKEN } });
+  const data = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(data.error || 'Erro');
+  return data;
+}
+function jbEsc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
+const JB_PALETTE = ['#3859F6', '#D6336C', '#0D9488', '#F59E0B', '#7C3AED', '#64748B'];
+function jbColorFor(name) {
+  let h = 0;
+  for (const ch of String(name || '?')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return JB_PALETTE[h % JB_PALETTE.length];
+}
+function jbAva(name) {
+  const n = String(name || '?');
+  return '<span class="jb-ava" style="background:' + jbColorFor(n) + '">' + jbEsc(n[0] || '?') + '</span>';
+}
+const jbEl = id => document.getElementById(id);
+
+// — Abrir a folha: jbOpen(id, canFinish, taskId) —
+async function jbOpen(id, canFinish, taskId) {
+  jbCurrent = { id, docs: [], taskId: taskId || null, canFinish: canFinish !== false, isLast: false };
+  jbEl('jbTitle').textContent = 'Carregando…';
+  jbEl('jbMeta').innerHTML = '';
+  jbEl('jbTimeline').innerHTML = '';
+  jbEl('jbTeam').innerHTML = '';
+  jbEl('jbDocs').innerHTML = '<p class="jb-empty">Carregando…</p>';
+  jbEl('jbOverlay').hidden = false;
+  try {
+    const d = await jbApi('/api/projects/' + id + '/detail');
+    if (!jbCurrent || jbCurrent.id !== id) return; // já fechou
+    jbRender(d);
+  } catch (err) { alert(err.message); jbClose(); }
+}
+
+function jbRender(d) {
+  const p = d.project;
+  jbEl('jbTitle').textContent = p.client_name + (p.name ? ' — ' + p.name : '');
+  const who = p.worker_name || '—';
+  jbEl('jbMeta').innerHTML =
+    '<div class="jb-meta-line"><span class="lbl">Cliente</span>' + jbEsc(p.client_name) + '</div>' +
+    '<div class="jb-meta-line"><span class="lbl">Prazo</span>' + jbEsc(p.due_date || 'sem prazo') + '</div>' +
+    '<div class="jb-meta-line"><span class="lbl">Seção</span>' + jbEsc(p.section_name || '—') + '</div>' +
+    '<div class="jb-meta-line"><span class="lbl">Responsável</span>' + jbAva(who) + '<span>' + jbEsc(who) + '</span><span class="jb-online"></span></div>';
+
+  const rows = (d.route || []).slice().sort((a, b) => a.step - b.step || String(a.name || '').localeCompare(String(b.name || '')));
+  const maxStep = rows.length ? Math.max(...rows.map(r => Number(r.step))) : null;
+  const myRows = rows.filter(r => r.name === p.section_name);
+  const myStep = myRows.length ? Math.min(...myRows.map(r => Number(r.step))) : null;
+  jbCurrent.isLast = myStep != null && maxStep != null && myStep === maxStep;
+
+  jbEl('jbTimeline').innerHTML = rows.map(r => {
+    const cls = r.status === 'done' ? 'done' : r.status === 'active' ? 'current' : '';
+    const dot = r.status === 'done' ? '✓' : r.status === 'active' ? '●' : '';
+    const sub = r.status === 'done' ? 'Concluída' : r.status === 'active' ? 'Em andamento' : 'Pendente';
+    let chip = '';
+    if (r.status === 'active') chip = r.assigned_to
+      ? '<span class="jb-ok-chip">👤 ' + jbEsc(r.assigned_name || 'assumida') + '</span>'
+      : '<span class="jb-warn">⏳ Ninguém aceitou ainda</span>';
+    else if (r.status === 'done' && r.assigned_name) chip = '<span class="jb-ok-chip">✓ ' + jbEsc(r.assigned_name) + '</span>';
+    return '<div class="jb-vstep ' + cls + '"><div class="jb-vdot">' + dot + '</div><div class="jb-vstep-info"><b>' + jbEsc(r.name || 'Seção') + '</b><small>' + sub + '</small>' + chip + '</div></div>';
+  }).join('');
+
+  const team = d.collaborators || d.team || [];
+  jbEl('jbTeam').innerHTML = team.length
+    ? '<span class="jb-team-label">Trabalhando nesta folha:</span>' +
+      team.slice(0, 4).map(c => jbAva(c.name || c)).join('') +
+      (team.length > 4 ? '<span class="jb-team-more">+' + (team.length - 4) + '</span>' : '')
+    : '';
+
+  jbCurrent.docs = d.documents || [];
+  jbEl('jbDocs').innerHTML = jbCurrent.docs.length ? jbCurrent.docs.map((doc, i) => {
+    const isImg = (doc.mime_type || '').startsWith('image/');
+    const isPdf = (doc.mime_type || '').includes('pdf');
+    const inner = isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + JB_TOKEN + '" alt="" loading="lazy">' : '<span>' + (isPdf ? '📕' : '📄') + '</span>';
+    return '<div class="jb-doc-card" onclick="jbViewerOpen(' + i + ')"><div class="jb-doc-thumb">' + inner + '</div><p class="jb-doc-name">' + jbEsc(doc.original_name) + '</p></div>';
+  }).join('') : '<p class="jb-empty">Nenhum documento nesta folha.</p>';
+
+  const fb = jbEl('jbFinishBtn');
+  if (jbCurrent.taskId) { fb.hidden = false; fb.textContent = '✅ Concluir tarefa'; }
+  else if (jbCurrent.canFinish) { fb.hidden = false; fb.textContent = '✅ Concluir e passar'; }
+  else fb.hidden = true;
+}
+
+function jbClose() {
+  jbCurrent = null;
+  jbViewerClose();
+  jbEl('jbNotesOverlay').hidden = true;
+  jbEl('jbOverlay').hidden = true;
+  try { if (typeof loadQueue === 'function') loadQueue(); } catch (e) {}
+}
+
+// — Concluir —
+jbEl('jbFinishBtn').addEventListener('click', async () => {
+  if (!jbCurrent) return;
+  try {
+    if (jbCurrent.taskId) {
+      const info = await jbApi('/api/tasks/' + jbCurrent.taskId + '/next');
+      let destination = null;
+      if (info.completes_project) destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronto para entrega ao cliente') ? 'warehouse' : 'client';
+      const data = await jbApi('/api/tasks/' + jbCurrent.taskId + '/finish', { method: 'POST', body: JSON.stringify({ destination, next_worker_id: null }) });
+      alert('✅ Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
+    } else {
+      if (!confirm('Concluir esta folha?')) return;
+      let destination = null;
+      if (jbCurrent.isLast) destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronta para entrega ao cliente') ? 'warehouse' : 'client';
+      const data = await jbApi('/api/projects/' + jbCurrent.id + '/finish', { method: 'POST', body: JSON.stringify({ destination }) });
+      if (data.completed) alert(destination === 'client' ? '🚚 Folha pronta para entrega ao cliente!' : '📦 Folha enviada ao armazém!');
+      else if (data.waiting) alert('⏳ Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
+      else alert('✅ Folha enviada para: ' + data.next);
+    }
+    jbClose();
+  } catch (err) { alert(err.message); }
+});
+
+// — Visualizador —
+let jbViewIndex = 0;
+function jbViewerOpen(i) { jbViewIndex = i; jbViewerRender(); jbEl('jbViewer').hidden = false; }
+function jbViewerRender() {
+  const doc = jbCurrent && jbCurrent.docs[jbViewIndex];
+  if (!doc) return jbViewerClose();
+  jbEl('jbViewerName').textContent = doc.original_name;
+  const isImg = (doc.mime_type || '').startsWith('image/');
+  const isPdf = (doc.mime_type || '').includes('pdf');
+  jbEl('jbViewerBody').innerHTML =
+    '<button class="jb-viewer-nav jb-viewer-prev" onclick="jbViewerNav(-1)">‹</button>' +
+    (isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + JB_TOKEN + '" alt="">'
+      : isPdf ? '<iframe src="/api/documents/' + doc.id + '/file?token=' + JB_TOKEN + '"></iframe>'
+      : '<p style="color:#fff;font-size:18px">Este tipo de arquivo não pode ser exibido aqui.</p>') +
+    '<button class="jb-viewer-nav jb-viewer-next" onclick="jbViewerNav(1)">›</button>' +
+    '<span class="jb-viewer-count">' + (jbViewIndex + 1) + ' / ' + jbCurrent.docs.length + '</span>';
+}
+function jbViewerNav(dir) { const n = jbViewIndex + dir; if (jbCurrent && n >= 0 && n < jbCurrent.docs.length) { jbViewIndex = n; jbViewerRender(); } }
+function jbViewerClose() { jbEl('jbViewer').hidden = true; jbEl('jbViewerBody').innerHTML = ''; }
+
+// — Anotações —
+jbEl('jbNotesBtn').addEventListener('click', jbNotesOpen);
+async function jbNotesOpen() {
+  if (!jbCurrent) return;
+  jbEl('jbNotesMsg').textContent = '';
+  jbEl('jbNoteText').value = '';
+  jbEl('jbNotesList').innerHTML = '<p class="jb-empty">Carregando…</p>';
+  jbEl('jbNotesOverlay').hidden = false;
+  try { jbRenderNotes((await jbApi('/api/projects/' + jbCurrent.id + '/notes')).notes || []); }
+  catch (err) { jbEl('jbNotesMsg').textContent = err.message; }
+}
+function jbRenderNotes(notes) {
+  jbEl('jbNotesList').innerHTML = notes.length ? notes.map(n =>
+    '<div class="jb-note ' + (n.is_alert ? 'alert' : 'normal') + '"><b>' + (n.is_alert ? '⚠️' : '💬') + ' ' + jbEsc(n.author_name || '?') + (n.is_alert && n.alert_type ? ' — ' + jbEsc(n.alert_type) : '') + '</b>' +
+    (n.note ? '<p>' + jbEsc(n.note) + '</p>' : '') +
+    '<time>' + jbEsc((n.created_at || '').slice(0, 16)) + '</time></div>'
+  ).join('') : '<p class="jb-empty">Nenhuma anotação ainda.</p>';
+}
+async function jbSendNote(isAlert, alertType) {
+  const note = jbEl('jbNoteText').value.trim();
+  if (!note && !isAlert) { jbEl('jbNotesMsg').textContent = 'Escreva a anotação.'; return; }
+  try {
+    await jbApi('/api/projects/' + jbCurrent.id + '/notes', { method: 'POST', body: JSON.stringify({ note, is_alert: isAlert, alert_type: alertType }) });
+    jbEl('jbNoteText').value = '';
+    jbEl('jbNotesMsg').textContent = isAlert ? '⚠️ Alerta enviado ao gestor.' : 'Anotação salva.';
+    jbRenderNotes((await jbApi('/api/projects/' + jbCurrent.id + '/notes')).notes || []);
+  } catch (err) { jbEl('jbNotesMsg').textContent = err.message; }
+}
+function jbNotesClose() { jbEl('jbNotesOverlay').hidden = true; }
+
+// — Upload (ÚNICO ponto pendente de ligação) —
+function jbUploadTrigger() {
+  const input = document.createElement('input');
+  input.type = 'file';
+  input.multiple = true;
+  input.onchange = () => jbUploadFiles(input.files);
+  input.click();
+}
+function jbUploadFiles(files) {
+  if (!jbCurrent || !files || !files.length) return;
+  const box = document.querySelector('#jbOverlay .jb-upload');
+  const original = box ? box.innerHTML : '';
+  if (box) box.innerHTML = '⏳ Enviando...';
+  const fd = new FormData();
+  for (const f of files) fd.append('files', f);
+  fetch('/api/projects/' + jbCurrent.id + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + JB_TOKEN }, body: fd })
+    .then(async res => {
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Erro no upload');
+      if (box) box.innerHTML = '✅ ' + data.count + ' arquivo(s) enviado(s)';
+      const d = await jbApi('/api/projects/' + jbCurrent.id + '/detail');
+      if (jbCurrent && jbCurrent.id === d.project.id) jbRender(d);
+      setTimeout(() => { if (box) box.innerHTML = original; }, 2500);
+    })
+    .catch(err => { if (box) box.innerHTML = original; alert(err.message); });
+}
+
+// — Fechar por ESC e clique fora —
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  if (!jbEl('jbViewer').hidden) return jbViewerClose();
+  if (!jbEl('jbNotesOverlay').hidden) return jbNotesClose();
+  if (!jbEl('jbOverlay').hidden) return jbClose();
+});
+jbEl('jbOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) jbClose(); });
 </script>
 </body>
 </html>

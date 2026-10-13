@@ -1071,7 +1071,8 @@ app.get('/api/projects/:id/detail', auth, (req, res) => {
     WHERE t.item_id IN (SELECT id FROM project_items WHERE project_id = ?)
     ORDER BY t.task_order IS NULL, t.task_order, t.id`).all(p.id);
   const itemsTree = items.map(it => ({ ...it, tasks: tasks.filter(t => t.item_id === it.id) }));
-  res.json({ project: p, documents, sections, route, items: itemsTree });
+  const collaborators = db.prepare('SELECT u.id, u.name FROM project_collaborators pc JOIN users u ON u.id = pc.user_id WHERE pc.project_id = ? ORDER BY u.name').all(p.id);
+res.json({ project: p, documents, sections, route, items: itemsTree, collaborators });
 });
 app.post('/api/projects/:id/documents', auth, upload.array('files', 20), (req, res) => {
   const p = db.prepare('SELECT * FROM projects WHERE id = ? AND company_id = ?').get(req.params.id, req.user.company_id);
