@@ -533,12 +533,12 @@ loadHistory();
 <!-- ===== W1: Popup da folha (worker — desktop) ===== -->
 <div class="jb-overlay" id="jbOverlay" hidden>
   <div class="jb-modal">
+    <button class="jb-close" onclick="jbClose()" aria-label="Fechar">✕</button>
     <div class="jb-body">
       <div class="jb-left">
         <div class="jb-head">
           <h3 id="jbTitle">Carregando…</h3>
           <span class="jb-badge">Em produção</span>
-          <button class="jb-close" onclick="jbClose()">✕</button>
         </div>
         <div class="jb-meta-list" id="jbMeta"></div>
         <div class="jb-vtimeline" id="jbTimeline"></div>
@@ -550,8 +550,12 @@ loadHistory();
       </div>
       <div class="jb-right">
         <p class="jb-docs-title">📎 Documentos</p>
-        <div class="jb-docs-grid" id="jbDocs"></div>
-        <div class="jb-upload" onclick="jbUploadTrigger()">⬆️ Clique ou arraste seu arquivo</div>
+        <div class="jb-docs-scroll">
+          <div class="jb-docs-grid" id="jbDocs"></div>
+        </div>
+        <div class="jb-upload-zone">
+          <div class="jb-upload" onclick="jbUploadTrigger()">⬆️ Clique ou arraste seu arquivo</div>
+        </div>
       </div>
     </div>
   </div>
@@ -666,12 +670,15 @@ function jbRender(d) {
     : '';
 
   jbCurrent.docs = d.documents || [];
-  jbEl('jbDocs').innerHTML = jbCurrent.docs.length ? jbCurrent.docs.map((doc, i) => {
+  const docsHtml = jbCurrent.docs.length ? jbCurrent.docs.map((doc, i) => {
     const isImg = (doc.mime_type || '').startsWith('image/');
     const isPdf = (doc.mime_type || '').includes('pdf');
     const inner = isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + JB_TOKEN + '" alt="" loading="lazy">' : '<span>' + (isPdf ? '📕' : '📄') + '</span>';
     return '<div class="jb-doc-card" onclick="jbViewerOpen(' + i + ')"><div class="jb-doc-thumb">' + inner + '</div><p class="jb-doc-name">' + jbEsc(doc.original_name) + '</p></div>';
   }).join('') : '<p class="jb-empty">Nenhum documento nesta folha.</p>';
+  const jbGrid = jbEl('jbDocs');
+  jbGrid.innerHTML = docsHtml;
+  jbGrid.classList.toggle('jb-empty-grid', !jbCurrent.docs.length);
 
   const fb = jbEl('jbFinishBtn');
   if (jbCurrent.taskId) { fb.hidden = false; fb.textContent = '✅ Concluir tarefa'; }
@@ -795,6 +802,33 @@ document.addEventListener('keydown', e => {
   if (!jbEl('jbOverlay').hidden) return jbClose();
 });
 jbEl('jbOverlay').addEventListener('click', e => { if (e.target === e.currentTarget) jbClose(); });
+
+// — Drag-and-drop real na zona de upload —
+(function jbSetupDropzone() {
+  const zone = document.querySelector('#jbOverlay .jb-upload');
+  if (!zone) return;
+  ['dragenter', 'dragover'].forEach(ev => zone.addEventListener(ev, e => { e.preventDefault(); e.stopPropagation(); zone.classList.add('jb-dragging'); }));
+  ['dragleave', 'drop'].forEach(ev => zone.addEventListener(ev, e => {
+    e.preventDefault(); e.stopPropagation();
+    zone.classList.remove('jb-dragging');
+    if (ev === 'drop' && e.dataTransfer && e.dataTransfer.files.length && jbCurrent) jbUploadFiles(e.dataTransfer.files);
+  }));
+  // impede o navegador de abrir o arquivo se soltarem fora da caixa
+  ['dragover', 'drop'].forEach(ev => document.addEventListener(ev, e => e.preventDefault()));
+})();
+
+// — Dica de rolagem (fade) na grade de documentos —
+(function jbSetupFade() {
+  const scroller = document.querySelector('#jbOverlay .jb-docs-scroll');
+  if (!scroller) return;
+  const fade = document.createElement('div');
+  fade.className = 'jb-fade';
+  scroller.appendChild(fade);
+  const update = () => { fade.style.opacity = (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight > 4) ? '1' : '0'; };
+  scroller.addEventListener('scroll', update);
+  new MutationObserver(update).observe(scroller, { childList: true, subtree: true });
+  update();
+})();
 </script>
 </body>
 </html>
