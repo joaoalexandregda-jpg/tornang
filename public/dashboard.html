@@ -186,9 +186,6 @@ document.getElementById('driversBtn').addEventListener('click', () => alert('Ger
 // ===== Sino, dropdown e fechamento =====
 const notifPanel = document.getElementById('notifPanel');
 const userMenu = document.getElementById('userMenu');
-document.getElementById('bellBtn').addEventListener('click', (e) => {
-  e.stopPropagation(); notifPanel.hidden = !notifPanel.hidden; userMenu.hidden = true;
-});
 document.getElementById('chipBtn').addEventListener('click', (e) => {
   e.stopPropagation(); userMenu.hidden = !userMenu.hidden; notifPanel.hidden = true;
 });
