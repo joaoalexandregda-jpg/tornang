@@ -242,11 +242,7 @@ document.getElementById('emailForm').addEventListener('submit', async (e) => {
 // ===== Sino, dropdown e fechamento =====
 const notifPanel = document.getElementById('notifPanel');
 const userMenu = document.getElementById('userMenu');
-document.getElementById('bellBtn').addEventListener('click', (e) => {
-  e.stopPropagation();
-  notifPanel.hidden = !notifPanel.hidden;
-  userMenu.hidden = true;
-});
+
 document.getElementById('chipBtn').addEventListener('click', (e) => {
   e.stopPropagation();
   userMenu.hidden = !userMenu.hidden;
@@ -314,28 +310,9 @@ document.addEventListener('click', (e) => {
   if (!e.target.closest('.rail') && !e.target.closest('.flyout')) flyout.hidden = true;
 });
 
-// ===== Sino: notificações reais =====
-(async () => {
-  try {
-    const { notifications, unread } = await api('/api/notifications');
-    const badge = document.getElementById('bellBadge');
-    if (badge) { badge.textContent = unread; badge.hidden = unread === 0; }
-    const panel = document.getElementById('notifPanel');
-    if (panel && notifications.length) {
-      panel.innerHTML = notifications.map(n => `
-        <div class="notif-item ${n.read ? '' : 'unread'}">
-          <b>${esc(n.title)}</b>
-          <p>${esc(n.body || '')}</p>
-          <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
-        </div>`).join('');
-      panel.addEventListener('click', async () => {
-        try { await api('/api/notifications/read', { method: 'POST' }); } catch (e) {}
-        if (badge) { badge.textContent = '0'; badge.hidden = true; }
-      }, { once: true });
-    }
-  } catch (e) {}
-})();
+
 
 </script>
+<script src="/bell.js"></script>
 </body>
 </html>
