@@ -94,6 +94,11 @@ document.getElementById('todayDate').textContent = new Date().toLocaleDateString
 
 let locations = [];
 
+function locThumb(l, cls) {
+  return `<span class="${cls}">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span>`;
+}
+
+
 
 
 
