@@ -191,52 +191,7 @@ load().catch(err => {
   document.getElementById('newCollabBtn').hidden = true;
 });
 </script>
-<script>
-// ===== Rail: ícones de local + flyout no hover (v5.9.2) =====
-(async () => {
-  const token = localStorage.getItem('token');
-  if (!token) return;
-  const rail = document.getElementById('rail');
-  const box = document.getElementById('locIcons');
-  if (!rail || !box) return;
-  let flyout = document.getElementById('flyout');
-  if (!flyout) {
-    flyout = document.createElement('div');
-    flyout.id = 'flyout'; flyout.className = 'flyout'; flyout.hidden = true;
-    rail.appendChild(flyout);
-  }
-  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
-  const res = await fetch('/api/locations', { headers: { 'Authorization': 'Bearer ' + token } });
-  const data = await res.json().catch(() => ({}));
-  const locs = data.locations || data || [];
-  box.innerHTML = locs.map(l => `
-    <button class="rail-item" data-loc="${l.id}" title="${esc(l.name)}">
-      ${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}
-      <span class="rail-label">${esc(l.name)}</span>
-    </button>`).join('');
-  let hideTimer = null;
-  const scheduleHide = () => { clearTimeout(hideTimer); hideTimer = setTimeout(() => { flyout.hidden = true; }, 900); };
-  box.querySelectorAll('.rail-item').forEach(item => {
-    item.addEventListener('mouseenter', () => {
-      clearTimeout(hideTimer);
-      const l = locs.find(x => String(x.id) === item.dataset.loc);
-      if (!l) return;
-      flyout.innerHTML = `
-        <div class="flyout-title">${esc(l.name)}</div>
-        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=projects">📁 Projetos</a>
-        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=sections">🗂️ Seções</a>
-        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=workers">👥 Trabalhadores</a>`;
-      flyout.style.top = item.offsetTop + 'px';
-      flyout.style.left = (rail.offsetWidth - 4) + 'px';
-      flyout.hidden = false;
-    });
-    item.addEventListener('mouseleave', scheduleHide);
-  });
-  flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-  flyout.addEventListener('mouseleave', scheduleHide);
-  document.addEventListener('click', e => { if (!e.target.closest('.rail') && !e.target.closest('.flyout')) flyout.hidden = true; });
-})();
-</script>
+<script src="/rail.js"></script>
 <script src="/bell.js"></script>
 </body>
 </html>

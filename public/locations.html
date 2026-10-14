@@ -93,42 +93,12 @@ document.getElementById('chipName').textContent = user.name || '';
 
 let locations = [];
 let editingId = null, pendingImage = null;
-const rail = document.getElementById('rail');
-const flyout = document.getElementById('flyout');
-let hoverTimer = null, hideTimer = null;
+
 
 function locThumb(l, cls) {
   return `<span class="${cls}">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span>`;
 }
-function scheduleHide() { clearTimeout(hideTimer); hideTimer = setTimeout(() => { flyout.hidden = true; }, 900); }
-function showFlyout(l, item) {
-  document.getElementById('flyoutTitle').textContent = l.name;
-  document.getElementById('flyProjects').href = 'manager.html?loc=' + l.id + '&tab=projects';
-  document.getElementById('flySections').href = 'manager.html?loc=' + l.id + '&tab=sections';
-  document.getElementById('flyGroups').href = 'manager.html?loc=' + l.id + '&tab=workers';
-  flyout.style.top = item.offsetTop + 'px';
-  flyout.style.left = (rail.offsetWidth - 4) + 'px';
-  flyout.hidden = false;
-}
-flyout.addEventListener('mouseenter', () => clearTimeout(hideTimer));
-flyout.addEventListener('mouseleave', scheduleHide);
-rail.addEventListener('mouseleave', scheduleHide);
-rail.addEventListener('mouseenter', () => clearTimeout(hideTimer));
 
-function renderRail() {
-  const box = document.getElementById('locIcons');
-  box.innerHTML = '';
-  locations.forEach(l => {
-    const b = document.createElement('button');
-    b.className = 'rail-item loc';
-    b.title = l.name;
-    b.innerHTML = locThumb(l, 'rail-ico') + `<span class="rail-label">${esc(l.name)}</span>`;
-    b.addEventListener('mouseenter', () => { clearTimeout(hideTimer); clearTimeout(hoverTimer); hoverTimer = setTimeout(() => showFlyout(l, b), 200); });
-    b.addEventListener('mouseleave', () => { clearTimeout(hoverTimer); scheduleHide(); });
-    b.addEventListener('click', () => showFlyout(l, b));
-    box.appendChild(b);
-  });
-}
 
 
 function renderList() {
@@ -158,7 +128,7 @@ function renderList() {
     try {
       await api('/api/locations/' + l.id, { method: 'DELETE' });
       locations = locations.filter(x => x.id != l.id);
-      renderList(); renderRail();
+      renderList(); railRefresh();
       document.getElementById('locMsg').textContent = 'Local excluído.';
     } catch (err) { document.getElementById('locMsg').textContent = err.message; }
   }));
@@ -205,7 +175,7 @@ const body = JSON.stringify({
     }
     const i = locations.findIndex(x => x.id === loc.id);
     if (i >= 0) locations[i] = loc; else locations.push(loc);
-    renderList(); renderRail(); resetForm();
+    renderList(); railRefresh(); resetForm();
     msg.textContent = 'Local salvo.';
   } catch (err) { msg.textContent = err.message; }
 });
@@ -216,7 +186,7 @@ const body = JSON.stringify({
     const logoEl = document.getElementById('railLogo');
     if (company.logo) logoEl.innerHTML = `<img src="/${esc(company.logo)}" alt="">`;
     locations = locs;
-    renderRail(); renderList();
+    railRefresh(); renderList();
   } catch (err) { alert(err.message); }
 })();
 
@@ -227,9 +197,8 @@ const userMenu = document.getElementById('userMenu');
 document.getElementById('chipBtn').addEventListener('click', (e) => { e.stopPropagation(); userMenu.hidden = !userMenu.hidden; });
 document.addEventListener('click', (e) => {
   if (!e.target.closest('.menu-wrap')) userMenu.hidden = true;
-  if (!e.target.closest('.rail') && !e.target.closest('.flyout')) flyout.hidden = true;
 });
-document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { userMenu.hidden = true; flyout.hidden = true; } });
+document.addEventListener('keydown', (e) => { if (e.key === 'Escape') { userMenu.hidden = true; } });
 userMenu.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
 document.getElementById('menuLogout').addEventListener('click', async () => {
   try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
@@ -240,6 +209,7 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
 
 
 </script>
+<script src="/rail.js"></script>
 <script src="/bell.js"></script>
 </body>
 </html>
