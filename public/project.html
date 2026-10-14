@@ -576,21 +576,11 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
   location.href = 'index.html';
 });
 
-// ===== Rail: logo + locais =====
+// ===== Rail: logo (ícones de local agora são do bloco v5.9.2) =====
 (async () => {
   try {
     const { company: c } = await api('/api/company');
     if (c.logo) document.getElementById('railLogo').innerHTML = `<img src="/${esc(c.logo)}" alt="">`;
-    const { locations: locs } = await api('/api/locations');
-    const box = document.getElementById('locIcons');
-    locs.forEach(l => {
-      const b = document.createElement('button');
-      b.className = 'rail-item loc';
-      b.title = l.name;
-      b.innerHTML = `<span class="rail-ico">${l.image ? `<img src="${esc(l.image)}" alt="">` : esc((l.name || '?').trim()[0].toUpperCase())}</span><span class="rail-label">${esc(l.name)}</span>`;
-      b.addEventListener('click', () => location.href = 'manager.html?loc=' + l.id);
-      box.appendChild(b);
-    });
   } catch (e) {}
 })();
 

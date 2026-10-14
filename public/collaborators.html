@@ -95,6 +95,11 @@ document.getElementById('modalClose').addEventListener('click', () => document.g
 const chipBtn = document.getElementById('chipBtn'), userMenu = document.getElementById('userMenu');
 chipBtn.addEventListener('click', () => userMenu.hidden = !userMenu.hidden);
 document.addEventListener('click', e => { if (!e.target.closest('.menu-wrap')) userMenu.hidden = true; });
+const chipUser = JSON.parse(localStorage.getItem('user') || '{}');
+document.getElementById('chipAvatar').innerHTML = chipUser.avatar
+  ? `<img src="${esc(chipUser.avatar)}" alt="Foto de perfil"><span class="status-dot"></span>`
+  : `<span class="avatar-initial">${esc((chipUser.name || '?').trim()[0].toUpperCase())}</span><span class="status-dot"></span>`;
+document.getElementById('chipName').textContent = chipUser.name || '';
 userMenu.querySelectorAll('button[data-go]').forEach(b => b.addEventListener('click', () => location.href = b.dataset.go));
 document.getElementById('menuLogout').addEventListener('click', async () => {
   try { await api('/api/logout', { method: 'POST' }); } catch (e) {}
