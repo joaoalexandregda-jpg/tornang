@@ -118,7 +118,7 @@ function timeAgo(s) {
   if (diff < 172800) return 'ontem';
   return String(s).slice(0, 10).split('-').reverse().join('/');
 }
-const NOTE_ICONS = { 'Problema mecânico': '<i data-lucide="wrench"></i>', 'Falta de material': '<i data-lucide="package"></i>', 'Aguardando cliente': '<i data-lucide="clock"></i>', 'Alerta geral': '<i data-lucide="alert-triangle"></i>', 'Emergência médica': '<i data-lucide="ambulance"></i>', 'Incêndio': '<i data-lucide="fire"></i>' };
+const NOTE_ICONS = { 'Problema mecânico': 'wrench', 'Falta de material': 'package', 'Aguardando cliente': 'clock', 'Alerta geral': 'alert-triangle', 'Emergência médica': 'cross', 'Incêndio': 'flame' };
 function updateNoteCount() {
   const nc = document.getElementById('pjNoteCount');
   nc.textContent = (PJ.notes || []).length;

@@ -745,7 +745,7 @@ async function downloadHistory(id) {
 }
 
 // ===== Anotações da equipe =====
-const noteIcons = { 'Problema mecânico': '<i data-lucide="wrench"></i>', 'Falta de material': '<i data-lucide="package"></i>', 'Aguardando cliente': '<i data-lucide="clock"></i>', 'Alerta geral': '<i data-lucide="alert-triangle"></i>', 'Emergência médica': '<i data-lucide="ambulance"></i>', 'Incêndio': '<i data-lucide="fire"></i>' };
+const noteIcons = { 'Problema mecânico': '<i data-lucide="wrench"></i>', 'Falta de material': '<i data-lucide="package"></i>', 'Aguardando cliente': '<i data-lucide="clock"></i>', 'Alerta geral': '<i data-lucide="alert-triangle"></i>', 'Emergência médica': '<i data-lucide="ambulance"></i>', 'Incêndio': '<i data-lucide="flame"></i>' };
 async function showNotes(id) {
   const { notes } = await api('/api/projects/' + id + '/notes');
   const p = projectsCache.find(x => x.id === id);
@@ -760,6 +760,7 @@ async function showNotes(id) {
   }).join('') : '<p class="empty">Nenhuma anotação ainda.</p>';
   openModal('Anotações — ' + projectLabel(p || { client_name: '?' }), rows,
     '', `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
+    refreshIcons()
 }
 // Trabalhadores
 let workersCache = [];
