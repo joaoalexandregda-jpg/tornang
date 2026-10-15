@@ -5,16 +5,17 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Tornang — Colaboradores</title>
 <link rel="stylesheet" href="/style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="with-rail">
   <aside class="rail" id="rail">
-  <div class="rail-logo" id="railLogo">🏭</div>
+  <div class="rail-logo" id="railLogo"><i data-lucide="factory"></i></div>
   <nav class="rail-nav">
-    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <a class="rail-item" href="dashboard.html" title="Dashboard"><i data-lucide="layout-dashboard"></i><span class="rail-label">Dashboard</span></a>
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais"><i data-lucide="map-pin"></i><span class="rail-label">Gerenciar Locais</span></a>
   </nav>
 </aside>
 <div class="topbar">
@@ -23,7 +24,7 @@
   </div>
   <div class="topbar-right">
     <div class="bell-wrap">
-      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+    <button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
       <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
     </div>
     <div class="menu-wrap">
@@ -32,9 +33,9 @@
         <span class="chip-name" id="chipName"></span>
       </button>
       <div class="dropdown" id="userMenu" hidden>
-        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
-        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
-        <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
+<button class="dropdown-item" data-go="company.html"><i data-lucide="building-2"></i> Minha empresa</button>
+<button class="dropdown-item" data-go="account.html"><i data-lucide="user"></i> Meu usuário</button>
+<button class="dropdown-item" data-go="collaborators.html"><i data-lucide="users"></i> Colaboradores</button>
         <hr>
         <button class="dropdown-item danger" id="menuLogout">Sair</button>
       </div>
@@ -44,8 +45,8 @@
 <main>
   <div class="panel" style="max-width:900px">
     <div class="toolbar">
-      <h3 style="margin:0">👥 Colaboradores</h3>
-      <button class="btn primary" id="newCollabBtn" style="width:auto" hidden>+ Novo colaborador</button>
+    <h3 style="margin:0;display:flex;align-items:center;gap:8px"><i data-lucide="users" style="width:18px;height:18px;color:#0D9488"></i> Colaboradores</h3>
+<button class="btn primary" id="newCollabBtn" style="width:auto" hidden><i data-lucide="plus"></i> Novo colaborador</button>
     </div>
     <p class="muted" id="pageNote" style="font-size:13px;margin-top:6px"></p>
     <div id="collabList"></div>
@@ -83,6 +84,7 @@ async function api(path, opts = {}) {
   if (!res.ok) throw new Error(data.error || 'Erro');
   return data;
 }
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 function openModal(title, bodyHtml, footerHtml) {
   document.getElementById('modalTitle').textContent = title;
   document.getElementById('modalBody').innerHTML = bodyHtml;
@@ -126,9 +128,10 @@ function render() {
         ${canManage ? `<td><div class="row-actions">
           ${c.is_owner ? '' : `<button class="btn ghost small" onclick="editCollab(${c.id})">Editar</button>
           <button class="btn ghost small" onclick="resetCollab(${c.id})">Resetar senha</button>
-          <button class="icon-btn danger" title="Excluir" onclick="deleteCollab(${c.id})">🗑</button>`}
+          <button class="icon-btn danger" title="Excluir" onclick="deleteCollab(${c.id})"><i data-lucide="trash-2" style="color:#DC2626"></i></button>`}
         </div></td>` : ''}
       </tr>`).join('') + '</tbody></table>';
+  refreshIcons();
 }
 function locChecks(selected) {
   return locations.map(l => `<label style="display:flex;align-items:center;gap:8px;margin:4px 0"><input type="checkbox" class="clLoc" value="${l.id}" style="width:auto;margin:0" ${selected.includes(l.id) ? 'checked' : ''}> ${esc(l.name)}</label>`).join('');
@@ -190,6 +193,7 @@ load().catch(err => {
   document.getElementById('collabList').innerHTML = `<p class="empty">${esc(err.message)}</p>`;
   document.getElementById('newCollabBtn').hidden = true;
 });
+refreshIcons();
 </script>
 <script src="/rail.js"></script>
 <script src="/bell.js"></script>
