@@ -34,9 +34,10 @@
       $('flyGroups').href = 'manager.html?loc=' + l.id + '&tab=workers';
     } else {
       flyout.innerHTML = `<div class="flyout-title">${esc(l.name)}</div>
-        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=projects">📁 Projetos</a>
-        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=sections">🗂️ Seções</a>
-        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=workers">👥 Trabalhadores</a>`;
+        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=projects"><i data-lucide="folder"></i> Projetos</a>
+        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=sections"><i data-lucide="layers"></i> Seções</a>
+        <a class="flyout-link" href="manager.html?loc=${l.id}&tab=workers"><i data-lucide="users"></i> Trabalhadores</a>`;
+      window.lucide && lucide.createIcons();
     }
   };
   const show = (l, item) => {
