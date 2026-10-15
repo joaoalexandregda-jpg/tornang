@@ -5,33 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Minha empresa — Tornang</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="with-rail">
 <aside class="rail" id="rail">
-  <div class="rail-logo" id="railLogo">🏭</div>
+  <div class="rail-logo" id="railLogo"><i data-lucide="factory"></i></div>
   <nav class="rail-nav">
-    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <a class="rail-item" href="dashboard.html" title="Dashboard"><i data-lucide="layout-dashboard"></i><span class="rail-label">Dashboard</span></a>
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
-    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais"><i data-lucide="map-pin"></i><span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas"><i data-lucide="truck"></i><span class="rail-label">Motoristas</span></button>
   </nav>
   <div class="flyout" id="flyout" hidden>
     <div class="flyout-title" id="flyoutTitle"></div>
-    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
-    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
-    <a class="flyout-link" id="flyGroups" href="#">👥 Trabalhadores</a>
+    <a class="flyout-link" id="flyProjects" href="#"><i data-lucide="folder"></i> Projetos</a>
+    <a class="flyout-link" id="flySections" href="#"><i data-lucide="layers"></i> Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#"><i data-lucide="users"></i> Trabalhadores</a>
   </div>
 </aside>
 <div class="topbar">
   <div class="topbar-left">
     
-    <h1>Tornang — <span id="companyName"></span></h1>
+    <h1>Minha empresa</h1>
   </div>
   <div class="topbar-right">
     <div class="bell-wrap">
-      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+      <button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
       <div class="notif-panel" id="notifPanel" hidden>
         <div class="notif-empty">Sem notificações por enquanto.</div>
       </div>
@@ -42,9 +43,9 @@
         <span class="chip-name" id="chipName"></span>
       </button>
       <div class="dropdown" id="userMenu" hidden>
-        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
-        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
-        <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
+        <button class="dropdown-item" data-go="company.html"><i data-lucide="building-2"></i> Minha empresa</button>
+<button class="dropdown-item" data-go="account.html"><i data-lucide="user"></i> Meu usuário</button>
+<button class="dropdown-item" data-go="collaborators.html"><i data-lucide="users"></i> Colaboradores</button>
         <hr>
         <button class="dropdown-item danger" id="menuLogout">Sair</button>
       </div>
@@ -57,7 +58,7 @@
     <h2 style="margin-bottom:14px">Dados da empresa</h2>
     <div style="display:flex;align-items:center;gap:16px;margin-bottom:16px">
       <img id="logoPreview" src="" alt="" style="width:72px;height:72px;border-radius:12px;object-fit:cover;background:#f1f5f9;display:none">
-      <div id="logoPlaceholder" style="width:72px;height:72px;border-radius:12px;background:#f1f5f9;display:flex;align-items:center;justify-content:center;font-size:26px">🏢</div>
+      <div id="logoPlaceholder" style="width:72px;height:72px;border-radius:12px;background:#f1f5f9;display:flex;align-items:center;justify-content:center"><i data-lucide="building-2" style="width:30px;height:30px;color:#94A3B8"></i></div>
       <div>
         <input type="file" id="logoInput" accept="image/*" hidden>
         <button class="btn ghost small" id="logoBtn">Alterar logo</button>
@@ -104,7 +105,7 @@ async function api(path, opts = {}) {
 
 async function loadCompany() {
   const { company } = await api('/api/company');
-  document.getElementById('companyName').textContent = company.name;
+  
   document.getElementById('fName').value = company.name || '';
   document.getElementById('fNif').value = company.nif || '';
   document.getElementById('fAddress').value = company.address || '';
@@ -172,6 +173,7 @@ function setAvatar(el, withDot) {
 }
 setAvatar(document.getElementById('chipAvatar'), true);
 document.getElementById('chipName').textContent = user.name || '';
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 
 const notifPanel = document.getElementById('notifPanel');
 const userMenu = document.getElementById('userMenu');
@@ -195,7 +197,7 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
 });
 
 loadCompany();
-
+refreshIcons();
 
 
 
