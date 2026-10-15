@@ -5,23 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gerenciar Locais — Tornang</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="with-rail">
 <aside class="rail" id="rail">
-  <div class="rail-logo" id="railLogo">🏭</div>
+  <div class="rail-logo" id="railLogo"><i data-lucide="factory"></i></div>
   <nav class="rail-nav">
-    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <a class="rail-item" href="dashboard.html" title="Dashboard"><i data-lucide="layout-dashboard"></i><span class="rail-label">Dashboard</span></a>
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item active" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
-    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+    <a class="rail-item active" href="locations.html" title="Gerenciar Locais"><i data-lucide="map-pin"></i><span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas"><i data-lucide="truck"></i><span class="rail-label">Motoristas</span></button>
   </nav>
   <div class="flyout" id="flyout" hidden>
     <div class="flyout-title" id="flyoutTitle"></div>
-    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
-    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
-    <a class="flyout-link" id="flyGroups" href="#">👥 Trabalhadores</a>
+    <a class="flyout-link" id="flyProjects" href="#"><i data-lucide="folder"></i> Projetos</a>
+    <a class="flyout-link" id="flySections" href="#"><i data-lucide="layers"></i> Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#"><i data-lucide="users"></i> Trabalhadores</a>
   </div>
 </aside>
 
@@ -32,7 +33,7 @@
     </div>
     <div class="topbar-right">
       <div class="bell-wrap">
-        <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+      <button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
         <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
       </div>
       <div class="menu-wrap">
@@ -41,9 +42,9 @@
           <span class="chip-name" id="chipName"></span>
         </button>
         <div class="dropdown" id="userMenu" hidden>
-          <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
-          <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
-          <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
+        <button class="dropdown-item" data-go="company.html"><i data-lucide="building-2"></i> Minha empresa</button>
+<button class="dropdown-item" data-go="account.html"><i data-lucide="user"></i> Meu usuário</button>
+<button class="dropdown-item" data-go="collaborators.html"><i data-lucide="users"></i> Colaboradores</button>
           <hr>
           <button class="dropdown-item danger" id="menuLogout">Sair</button>
         </div>
@@ -90,7 +91,7 @@ function setAvatar(el, withDot) {
 }
 setAvatar(document.getElementById('chipAvatar'), true);
 document.getElementById('chipName').textContent = user.name || '';
-
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 let locations = [];
 let editingId = null, pendingImage = null;
 
@@ -108,7 +109,7 @@ function renderList() {
       ${locThumb(l, 'loc-thumb')}
       <div class="loc-row-main"><b>${esc(l.name)}</b><span>${esc(l.address || 'Sem endereço')}</span></div>
       <button type="button" class="btn ghost small" data-edit="${l.id}">Editar</button>
-      <button type="button" class="btn ghost small" data-del="${l.id}" style="color:#ef4444">Excluir</button>
+      <button type="button" class="btn ghost small" data-del="${l.id}" style="color:var(--t-danger)">Excluir</button>
     </div>`).join('') || '<p class="muted">Nenhum local.</p>';
   box.querySelectorAll('[data-edit]').forEach(b => b.addEventListener('click', () => {
     const l = locations.find(x => x.id == b.dataset.edit);
@@ -190,7 +191,7 @@ const body = JSON.stringify({
   } catch (err) { alert(err.message); }
 })();
 
-document.getElementById('driversBtn').addEventListener('click', () => alert('Gerenciar Motoristas chega em uma próxima etapa.'));
+
 
 // ===== Dropdown e fechamento =====
 const userMenu = document.getElementById('userMenu');
@@ -205,6 +206,7 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
   localStorage.clear();
   location.href = 'index.html';
 });
+refreshIcons();
 
 
 
