@@ -1052,3 +1052,109 @@ body > .tabs ~ .panel {
 .emg-banner b { font-size: 15px; }
 .emg-banner button { border: none; background: rgba(255, 255, 255, .2); color: #fff; border-radius: 8px; padding: 8px 14px; font: inherit; font-weight: 800; cursor: pointer; flex-shrink: 0; }
 .emg-banner button:hover { background: rgba(255, 255, 255, .35); }
+
+/* ==================== v6.0 — Design tokens (Conceito B: Data-forward + Teal unificado) ==================== */
+:root {
+  /* Cor primária única — teal */
+  --t-accent: #0D9488;
+  --t-accent-dark: #0B7A70;
+  --t-accent-soft: #CCF3EE;
+  /* Neutros */
+  --t-sidebar: #0b1220;
+  --t-panel: #0b1220;          /* painéis escuros de dados (KPI) */
+  --t-bg: #F5F7F6;
+  --t-card: #FFFFFF;
+  --t-border: #E5EAE8;
+  --t-text: #1F2937;
+  --t-muted: #64748B;
+  /* Status */
+  --t-ok: #16A34A;
+  --t-warn: #EA580C;
+  --t-danger: #DC2626;
+  /* Escalas */
+  --t-radius-sm: 10px;
+  --t-radius: 14px;
+  --t-radius-lg: 22px;
+  --t-shadow: 0 1px 3px rgba(15,23,42,.06), 0 4px 14px rgba(15,23,42,.04);
+  --t-shadow-hover: 0 6px 20px rgba(15,23,42,.10);
+  /* Tipografia — nunca encolher texto do trabalhador */
+  --t-fs-xs: 12px;
+  --t-fs-sm: 14px;
+  --t-fs-md: 16px;
+  --t-fs-kpi: 44px;
+}
+
+/* --- Morte definitiva dos azuis da era antiga --- */
+.rail-item.active { background: var(--t-accent); }
+.jb-btn-primary { background: var(--t-accent); }
+.jb-btn-primary:hover { background: var(--t-accent-dark); }
+.jb-doc-card:hover { border-color: var(--t-accent); }
+.jb-chips button:hover { border-color: var(--t-accent); color: var(--t-accent); }
+.pj-task-sec { color: var(--t-accent-dark); background: var(--t-accent-soft); }
+.doc-strip.drag .doc-card.upload { border-color: var(--t-accent); background: var(--t-accent-soft); }
+.badge.blue { background: var(--t-accent-soft); color: var(--t-accent-dark); }
+.btn.primary { background: var(--t-accent); }
+.btn.primary:hover { background: var(--t-accent-dark); }
+
+/* --- KPI estilo Data-forward: painéis escuros, números gigantes --- */
+.kpi {
+  background: var(--t-panel);
+  border: 0;
+  border-radius: var(--t-radius);
+  padding: 22px 24px;
+  position: relative;
+  overflow: hidden;
+}
+.kpi b {
+  color: #fff;
+  font-size: var(--t-fs-kpi);
+  font-weight: 800;
+  letter-spacing: -.02em;
+  line-height: 1;
+  display: block;
+}
+.kpi span {
+  color: rgba(255,255,255,.72);
+  text-transform: uppercase;
+  letter-spacing: .08em;
+  font-size: var(--t-fs-xs);
+  font-weight: 700;
+  display: block;
+  margin-top: 10px;
+}
+.kpi::after {
+  content: '';
+  position: absolute;
+  left: 24px;
+  bottom: 16px;
+  width: 56px;
+  height: 4px;
+  border-radius: 999px;
+  background: var(--t-accent);
+}
+.kpi.ok::after     { background: var(--t-ok); }
+.kpi.warn::after   { background: var(--t-warn); }
+.kpi.danger::after { background: var(--t-danger); }
+
+/* Chips de tendência — prontos para o v6.2 (setas ↑↓) */
+.kpi-trend {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  border-radius: 999px;
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 800;
+  margin-left: 8px;
+  vertical-align: middle;
+}
+.kpi-trend.up   { background: rgba(22,163,74,.18);  color: #4ADE80; }
+.kpi-trend.down { background: rgba(220,38,38,.18);  color: #F87171; }
+.kpi-trend.flat { background: rgba(255,255,255,.12); color: #CBD5E1; }
+
+/* --- Títulos de seção: voz de dados --- */
+.dash-section-title {
+  text-transform: uppercase;
+  letter-spacing: .06em;
+  font-weight: 800;
+}
