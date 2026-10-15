@@ -1158,3 +1158,17 @@ body > .tabs ~ .panel {
   letter-spacing: .06em;
   font-weight: 800;
 }
+
+/* ==================== v6.1 — Lucide icons ==================== */
+.rail-logo svg, .rail-item svg { width: 20px; height: 20px; }
+.flyout-link svg { width: 16px; height: 16px; color: #0D9488; }
+.bell svg { width: 20px; height: 20px; }
+.dropdown-item svg { width: 16px; height: 16px; color: #0D9488; vertical-align: -3px; }
+.dropdown-item.danger svg { color: #DC2626; }
+.icon-btn svg { width: 15px; height: 15px; vertical-align: middle; }
+.badge svg { width: 11px; height: 11px; vertical-align: -2px; }
+.btn svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 4px; }
+.doc-thumb.icon svg { width: 34px; height: 34px; color: #64748B; }
+.dropzone svg { width: 28px; height: 28px; color: #989CA9; }
+.ms-check svg { width: 10px; height: 10px; }
+.kpi-trend svg { width: 11px; height: 11px; }

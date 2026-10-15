@@ -5,23 +5,24 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Gerente — Tornang</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="with-rail">
 <aside class="rail" id="rail">
-  <div class="rail-logo" id="railLogo">🏭</div>
+  <div class="rail-logo" id="railLogo"><i data-lucide="factory"></i></div>
   <nav class="rail-nav">
-    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <a class="rail-item" href="dashboard.html" title="Dashboard"><i data-lucide="layout-dashboard"></i><span class="rail-label">Dashboard</span></a>
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
-    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais"><i data-lucide="map-pin"></i><span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas"><i data-lucide="truck"></i><span class="rail-label">Motoristas</span></button>
   </nav>
   <div class="flyout" id="flyout" hidden>
     <div class="flyout-title" id="flyoutTitle"></div>
-<a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
-<a class="flyout-link" id="flyGroups" href="#">👥 Trabalhadores</a>
-<a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
+<a class="flyout-link" id="flyProjects" href="#"><i data-lucide="folder"></i> Projetos</a>
+<a class="flyout-link" id="flyGroups" href="#"><i data-lucide="users"></i> Trabalhadores</a>
+<a class="flyout-link" id="flySections" href="#"><i data-lucide="layers"></i> Seções</a>
   </div>
 </aside>
 <div class="topbar">
@@ -29,7 +30,7 @@
     <h1>Tornang — <span id="companyName"></span><span id="locName" class="muted" style="font-weight:400"></span></h1>
   <div class="topbar-right">
     <div class="bell-wrap">
-      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+      <button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
       <div class="notif-panel" id="notifPanel" hidden>
         <div class="notif-empty">Sem notificações por enquanto.</div>
       </div>
@@ -40,9 +41,9 @@
         <span class="chip-name" id="chipName"></span>
       </button>
       <div class="dropdown" id="userMenu" hidden>
-        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
-        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
-        <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
+        <button class="dropdown-item" data-go="company.html"><i data-lucide="building-2"></i> Minha empresa</button>
+        <button class="dropdown-item" data-go="account.html"><i data-lucide="user"></i> Meu usuário</button>
+        <button class="dropdown-item" data-go="collaborators.html"><i data-lucide="users"></i> Colaboradores</button>
         <hr>
         <button class="dropdown-item danger" id="menuLogout">Sair</button>
       </div>
@@ -122,6 +123,7 @@ async function api(path, opts = {}) {
   if (!res.ok) throw new Error(data.error || 'Erro');
   return data;
 }
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 // Tabs
 document.querySelectorAll('.tab').forEach(t => t.addEventListener('click', () => {
   document.querySelectorAll('.tab').forEach(x => x.classList.remove('active'));
@@ -139,6 +141,7 @@ function openModal(title, bodyHtml, footerLeft = '', footerRight = '') {
   document.getElementById('modalFooterLeft').innerHTML = footerLeft;
   document.getElementById('modalFooterRight').innerHTML = footerRight;
   document.getElementById('modal').classList.remove('hidden');
+  refreshIcons();
 }
 document.getElementById('modalClose').addEventListener('click', () => document.getElementById('modal').classList.add('hidden'));
 function fmtDate(d) { return d ? d.split('-').reverse().join('/') : '—'; }
@@ -162,7 +165,7 @@ function ringSvg(done, total, size = 48) {
   const pct = total ? Math.round(done / total * 100) : 0;
   const r = 18, c = 2 * Math.PI * r;
   const off = c - (pct / 100) * c;
-  const color = !total ? '#C9CDD6' : (pct >= 100 ? '#1F9D72' : '#3859F6');
+  const color = !total ? '#C9CDD6' : (pct >= 100 ? '#1F9D72' : '#0D9488');
   return `<div class="ring" style="width:${size}px;height:${size}px"><svg viewBox="0 0 44 44" width="${size}" height="${size}">
     <circle cx="22" cy="22" r="${r}" fill="none" stroke="#E9EBF1" stroke-width="4"/>
     <circle cx="22" cy="22" r="${r}" fill="none" stroke="${color}" stroke-width="4" stroke-linecap="round" stroke-dasharray="${c}" stroke-dashoffset="${off}"/>
@@ -172,7 +175,7 @@ function projStatus(p) {
   if (['completed', 'at_warehouse', 'delivered'].includes(p.status)) return { label: 'Concluída', color: '#1F9D72', soft: '#E8F8F2' };
   const today = new Date().toISOString().slice(0, 10);
   if (p.due_date && p.due_date < today) return { label: 'Atrasada', color: '#E7793B', soft: '#FFF1E8' };
-  return { label: 'No prazo', color: '#3859F6', soft: '#EEF1FF' };
+  return { label: 'No prazo', color: '#0D9488', soft: '#E6F6F4' };
 }
 function renderProjects() {
   const search = document.getElementById('pSearch').value.toLowerCase();
@@ -191,7 +194,7 @@ function renderProjects() {
     return `<button class="projrow" onclick="openOverview(${p.id})">
       ${ringSvg(p.done_tasks, p.total_tasks)}
       <div style="min-width:0;flex:1">
-        <p style="font-size:13px;font-weight:700;color:#292E3E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.priority ? '⚠️ ' : ''}${esc(projectLabel(p))}</p>
+        <p style="font-size:13px;font-weight:700;color:#292E3E;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${p.priority ? '<i data-lucide="alert-triangle"></i> ' : ''}${esc(projectLabel(p))}</p>
         <div style="margin-top:6px;display:flex;align-items:center;gap:8px;font-size:10px;font-weight:500;color:#989CA9">
           <span class="badge" style="background:${st.soft};color:${st.color};font-size:9px">${st.label}</span>
           ${p.section_name && !['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<span>${esc(p.section_name)}</span>` : ''}
@@ -204,6 +207,7 @@ function renderProjects() {
       <span style="color:#A7AAB4">→</span>
     </button>`;
   }).join('') + '</div>';
+  refreshIcons();
 }
 document.getElementById('pSearch').addEventListener('input', renderProjects);
 // ===== Construtor de rota (final — grip de arraste, sem setas) =====
@@ -221,13 +225,13 @@ function renderRouteBuilder() {
   const used = new Set(routeSteps.flat());
   const checks = sectionsCache.map(s => {
     const done = routeDoneIds.includes(s.id);
-    return `<label class="route-check"><input type="checkbox" ${done || used.has(s.id) ? 'checked' : ''} ${done ? 'disabled' : ''} onchange="toggleRouteSection(${s.id})"> ${esc(s.name)}${done ? ' ✅' : ''}</label>`;
+    return `<label class="route-check"><input type="checkbox" ${done || used.has(s.id) ? 'checked' : ''} ${done ? 'disabled' : ''} onchange="toggleRouteSection(${s.id})"> ${esc(s.name)}${done ? ' <i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;color:#16A34A"></i>' : ''}</label>`;
   }).join('');
   const steps = routeSteps.map((step, i) => `
     <div class="route-step" data-i="${i}">
       <span class="drag-grip" draggable="true" title="Arraste para reordenar">⠿</span>
       <span class="route-step-no">Etapa ${i + 1}</span>
-      <span class="route-step-names">${step.map(id => esc(sectionName(id))).join(' + ')}${step.some(id => routeDoneIds.includes(id)) ? ' ✅' : ''}</span>
+      <span class="route-step-names">${step.map(id => esc(sectionName(id))).join(' + ')}${step.some(id => routeDoneIds.includes(id)) ? ' <i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;color:#16A34A"></i>' : ''}</span>
       <span class="row-actions">
         ${step.length > 1
           ? `<button class="btn ghost small" onclick="splitStep(${i})">Separar</button>`
@@ -238,6 +242,7 @@ function renderRouteBuilder() {
   el.innerHTML = `<div class="route-checks">${checks}</div><div class="route-steps">${steps || '<p class="empty">Marque seções acima para montar a rota.</p>'}</div>
     <p class="muted" style="font-size:12px;margin-top:8px">Marque as seções para adicioná-las (entram como nova etapa no fim). Arraste pelo ⠿ para reordenar, "Juntar c/ anterior" coloca a etapa em paralelo com a anterior, "Separar" desfaz e ✕ remove a etapa.</p>`;
   attachRouteDrag(el);
+  refreshIcons();
 }
 
 // ===== v5.0: construtor de itens e tarefas =====
@@ -265,7 +270,7 @@ function renderItemsBuilder() {
         <div class="field"><input placeholder="Item (ex.: 30 placas de saída)" value="${esc(it.name)}" oninput="npItems[${i}].name=this.value"></div>
         <div class="field" style="max-width:80px"><input type="number" min="1" value="${it.quantity}" title="Quantidade" oninput="npItems[${i}].quantity=Number(this.value)||1"></div>
         <label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" style="width:auto" ${it.ordered ? 'checked' : ''} onchange="npItems[${i}].ordered=this.checked;renderItemsBuilder()"> Ordenado</label>
-        <button class="btn ghost small" onclick="npRemoveItem(${i})">🗑</button>
+        <button class="btn ghost small" onclick="npRemoveItem(${i})"><i data-lucide="trash-2"></i></button>
       </div>
       ${it.tasks.map((t, ti) => `
       <div class="form-row" style="margin-left:18px">
@@ -280,6 +285,7 @@ function renderItemsBuilder() {
       </div>`).join('')}
       <button class="btn ghost small" style="margin:4px 0 0 18px" onclick="npAddTask(${i})">+ Tarefa</button>
     </div>`).join('');
+    refreshIcons();
 }
 
 
@@ -391,7 +397,7 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
       <div id="npItemsList"></div>
       <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>
       <h3 style="font-size:14px;margin:14px 0 6px">Documentos (opcional)</h3>
-      <div id="npDropzone" class="dropzone">⬆️<p>Clique ou arraste seus arquivos aqui</p></div>
+      <div id="npDropzone" class="dropzone"><i data-lucide="upload"></i><p>Clique ou arraste seus arquivos aqui</p></div>
       <input type="file" id="npFiles" multiple hidden>
     </div>`,
     `<button class="btn primary" onclick="createProject()">Abrir folha</button>`);
@@ -494,7 +500,7 @@ async function openOverview(id) {
     <div style="margin-top:24px;border-top:1px solid #ECEEF2;padding-top:24px">
       <div style="display:flex;justify-content:space-between;margin-bottom:12px">
         <h3 style="font-size:12px;font-weight:800">Atividade recente</h3>
-        <button style="border:0;background:none;font-size:10px;font-weight:700;color:#3859F6;cursor:pointer" onclick="closeDrawer();showHistory(${id})">Ver histórico</button>
+        <button style="border:0;background:none;font-size:10px;font-weight:700;color:#0D9488;cursor:pointer" onclick="closeDrawer();showHistory(${id})">Ver histórico</button>
       </div>
       ${acts || '<p class="empty">Sem atividade ainda.</p>'}
     </div>
@@ -515,7 +521,7 @@ async function openDetail(id) {
       <div class="doc-tile" title="Clique para visualizar" onclick="window.open('/api/documents/${d.id}/file?token=${token}','_blank')">
         ${isImg(d)
           ? `<img class="doc-thumb" src="/api/documents/${d.id}/file?token=${token}" alt="">`
-          : `<div class="doc-thumb icon">${(d.mime_type || '').includes('pdf') ? '📕' : '📄'}</div>`}
+          : `<div class="doc-thumb icon">${(d.mime_type || '').includes('pdf') ? '<i data-lucide="file-text"></i>' : '<i data-lucide="file"></i>'}</div>`}
         <div class="doc-name" title="${esc(d.original_name)}">${esc(d.original_name)}</div>
         <div class="doc-actions">
           <a class="btn ghost small" href="/api/documents/${d.id}/file?token=${token}&dl=1" onclick="event.stopPropagation()">Baixar</a>
@@ -525,7 +531,7 @@ async function openDetail(id) {
     : '<p class="empty">Nenhum documento anexado ainda.</p>';
   const itemsHtml = (items || []).length
     ? '<h3 style="font-size:12px;font-weight:800;margin:18px 0 4px">Itens e tarefas</h3>' + items.map(it => `
-      <p style="margin:12px 0 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0">${esc(it.name)}${it.quantity > 1 ? ' ×' + it.quantity : ''}${it.status === 'done' ? ' ✅' : ''}</p>
+      <p style="margin:12px 0 8px;font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0">${esc(it.name)}${it.quantity > 1 ? ' ×' + it.quantity : ''}${it.status === 'done' ? ' <i data-lucide="check" style="width:12px;height:12px;vertical-align:-2px;color:#16A34A"></i>' : ''}</p>
       ${(it.tasks || []).map(t => `
         <div class="ms-row">
           <span class="ms-check ${t.status === 'done' ? 'ms-done' : 'ms-todo'}">✓</span>
@@ -535,26 +541,26 @@ async function openDetail(id) {
     : '<p class="empty" style="margin-top:14px">Esta folha não tem itens — foi criada antes do sistema de tarefas.</p>';
   openModal(p.client_name, `
         <p style="margin:0 0 6px">
-      ${p.priority ? '<span class="badge red">⚠️ Urgente</span> ' : ''}
+      ${p.priority ? '<span class="badge red"><i data-lucide="alert-triangle"></i> Urgente</span> ' : ''}
     ${p.status === 'completed' ? '<span class="badge green">Concluída</span>'
-  : p.status === 'at_warehouse' ? '<span class="badge blue">📦 No armazém</span>'
-  : p.status === 'delivered' ? '<span class="badge green">🚚 Entregue</span>'
+  : p.status === 'at_warehouse' ? '<span class="badge blue"><i data-lucide="package"></i> No armazém</span>'
+  : p.status === 'delivered' ? '<span class="badge green"><i data-lucide="truck"></i> Entregue</span>'
   : p.status === 'pending_release' ? '<span class="badge gray">Aguardando liberação</span>'
   : '<span class="badge orange">Em produção</span>'}
  
     </p>
     <div style="display:flex;justify-content:space-between;align-items:baseline;gap:12px;flex-wrap:wrap">
       <span class="muted"><b>Cliente:</b> ${esc(p.client_name)} · <b>Prazo:</b> ${fmtDate(p.due_date)}</span>
-      ${p.name ? `<span class="muted"><b>Projeto:</b> <span style="color:#1d4ed8;font-weight:700">${esc(p.name)}</span></span>` : ''}
+      ${p.name ? `<span class="muted"><b>Projeto:</b> <span style="color:#0B7A70;font-weight:700">${esc(p.name)}</span></span>` : ''}
     </div>
     <p class="muted" style="margin:2px 0 0"><b>Responsável:</b> ${esc(p.worker_name || 'Aguardando')}</p>
     ${itemsHtml}
     ${docsHtml}
-    <div class="dropzone" id="dropzone">⬆️ Clique ou arraste seu arquivo
+    <div class="dropzone" id="dropzone"><i data-lucide="upload"></i> Clique ou arraste seu arquivo
       <input type="file" id="detailFiles" multiple hidden>
     </div>`,
-        `${p.status === 'pending_release' ? `<button class="btn primary small" onclick="releaseProject(${p.id})">Liberar para produção</button> ` : ''}${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ${p.priority ? 'ghost' : 'primary'} small" onclick="togglePriority(${p.id})">${p.priority ? 'Remover urgência' : '⚠️ Urgente'}</button>` : ''}`,
-        `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')">📦 No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')">🚚 Entregue</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})">💬 Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})">Histórico</button>${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="openAddItems(${p.id})">➕ Adicionar itens</button>` : ''}${p.archived ? `<button class="btn ghost small" onclick="unarchiveProject(${p.id})">↩️ Restaurar</button>` : `<button class="btn ghost small" onclick="archiveProject(${p.id})">🗄️ Arquivar</button>`}<button class="btn ghost small" onclick="deleteProject(${p.id})">🗑️ Excluir</button>`);
+        `${p.status === 'pending_release' ? `<button class="btn primary small" onclick="releaseProject(${p.id})">Liberar para produção</button> ` : ''}${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ${p.priority ? 'ghost' : 'primary'} small" onclick="togglePriority(${p.id})">${p.priority ? 'Remover urgência' : '<i data-lucide="alert-triangle"></i> Urgente'}</button>` : ''}`,
+        `${['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="setDestination(${p.id}, 'at_warehouse')"><i data-lucide="package"></i> No armazém</button><button class="btn ghost small" onclick="setDestination(${p.id}, 'delivered')"><i data-lucide="truck"></i> Entregue</button>` : ''}<button class="btn ghost small" onclick="showNotes(${p.id})"><i data-lucide="message-circle"></i> Anotações</button><button class="btn ghost small" onclick="showHistory(${p.id})"><i data-lucide="clock"></i> Histórico</button>${!['completed', 'at_warehouse', 'delivered'].includes(p.status) ? `<button class="btn ghost small" onclick="openAddItems(${p.id})"><i data-lucide="plus"></i> Adicionar itens</button>` : ''}${p.archived ? `<button class="btn ghost small" onclick="unarchiveProject(${p.id})"><i data-lucide="rotate-ccw"></i> Restaurar</button>` : `<button class="btn ghost small" onclick="archiveProject(${p.id})"><i data-lucide="archive"></i> Arquivar</button>`}<button class="btn ghost small" onclick="deleteProject(${p.id})"><i data-lucide="trash"></i> Excluir</button>`);
   // Dropzone: clique ou arrastar
   const dz = document.getElementById('dropzone');
   const input = document.getElementById('detailFiles');
@@ -598,12 +604,7 @@ async function releaseProject(id) {
   try { await api('/api/projects/' + id + '/release', { method: 'POST' }); document.getElementById('modal').classList.add('hidden'); loadProjects(); }
   catch (err) { alert(err.message); }
 }
-async function deleteProject(id) {
-  const p = projectsCache.find(x => x.id === id);
-  if (!confirm(`Excluir a folha "${p.name ? p.client_name + ' — ' + p.name : p.client_name}"? Esta ação não pode ser desfeita.`)) return;
-  try { await api('/api/projects/' + id, { method: 'DELETE' }); loadProjects(); }
-  catch (err) { alert(err.message); }
-}
+
 async function setDestination(id, destination) {
   try { await api('/api/projects/' + id + '/destination', { method: 'PUT', body: JSON.stringify({ destination }) }); openDetail(id); loadProjects(); }
   catch (err) { alert(err.message); }
@@ -744,13 +745,13 @@ async function downloadHistory(id) {
 }
 
 // ===== Anotações da equipe =====
-const noteIcons = { 'Problema mecânico': '🔧', 'Falta de material': '📦', 'Aguardando cliente': '⏳', 'Alerta geral': '⚠️', 'Emergência médica': '🚑', 'Incêndio': '🔥' };
+const noteIcons = { 'Problema mecânico': '<i data-lucide="wrench"></i>', 'Falta de material': '<i data-lucide="package"></i>', 'Aguardando cliente': '<i data-lucide="clock"></i>', 'Alerta geral': '<i data-lucide="alert-triangle"></i>', 'Emergência médica': '<i data-lucide="ambulance"></i>', 'Incêndio': '<i data-lucide="fire"></i>' };
 async function showNotes(id) {
   const { notes } = await api('/api/projects/' + id + '/notes');
   const p = projectsCache.find(x => x.id === id);
   const rows = notes.length ? notes.map(n => {
     const isEmergency = /emergência|incêndio/i.test(n.alert_type || '');
-    const icon = n.is_alert ? (noteIcons[n.alert_type] || '⚠️') : '💬';
+    const icon = n.is_alert ? (noteIcons[n.alert_type] || '<i data-lucide="alert-triangle"></i>') : '<i data-lucide="message-circle"></i>';
     return `<div class="notif-item ${isEmergency ? 'note-emergency' : n.is_alert ? 'unread' : ''}">
       <b>${icon} ${esc(n.author_name || '?')}${n.section_name ? ' · ' + esc(n.section_name) : ''}${n.is_alert ? ' — ' + esc(n.alert_type || 'Alerta') : ''}</b>
       ${n.note ? `<p>${esc(n.note)}</p>` : ''}
@@ -795,13 +796,14 @@ function renderWorkers() {
         <td>${w.section_name ? esc(w.section_name) : '<span class="badge orange">Sem seção</span>'}</td>
         <td><span class="badge ${w.online ? 'green' : 'gray'}">${w.online ? 'Online' : 'Offline'}</span></td>
         <td><span class="pass-cell"><span class="pass-mask" id="pass-${w.id}" data-shown="0">••••••••</span>
-          <button class="icon-btn" title="Mostrar/ocultar" onclick="togglePass(${w.id}, this)">👁</button>
-          <button class="icon-btn" title="Copiar" onclick="copyPass(${w.id}, this)">📋</button></span></td>
+          <button class="icon-btn" title="Mostrar/ocultar" onclick="togglePass(${w.id}, this)"><i data-lucide="eye"></i></button>
+          <button class="icon-btn" title="Copiar" onclick="copyPass(${w.id}, this)"><i data-lucide="clipboard"></i></button></span></td>
         <td><div class="row-actions">
           <button class="btn ghost small" onclick="editWorker(${w.id})">Editar</button>
-          <button class="icon-btn danger" title="Excluir" onclick="deleteWorker(${w.id})">🗑</button>
+          <button class="icon-btn danger" title="Excluir" onclick="deleteWorker(${w.id})"><i data-lucide="trash"></i></button>
         </div></td>
       </tr>`).join('') + '</tbody></table>';
+      refreshIcons();
 }
 ['wSearch', 'wSectionFilter', 'wStatusFilter'].forEach(id =>
   document.getElementById(id).addEventListener('input', renderWorkers));
@@ -902,9 +904,10 @@ async function loadSections() {
         <td><input value="${esc(s.name)}" id="secName-${s.id}" style="max-width:260px"></td>
         <td><div class="row-actions">
 <button class="btn ghost small" onclick="renameSection(${s.id})">Renomear</button>
-<button class="icon-btn danger" title="Excluir" onclick="deleteSection(${s.id})">🗑</button>
+<button class="icon-btn danger" title="Excluir" onclick="deleteSection(${s.id})"><i data-lucide="trash-2"></i></button>
         </div></td>
       </tr>`).join('') + '</tbody></table>';
+      refreshIcons();
 }
 document.getElementById('createSectionBtn').addEventListener('click', async () => {
   const name = document.getElementById('sName').value.trim();
