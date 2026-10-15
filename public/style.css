@@ -1172,3 +1172,6 @@ body > .tabs ~ .panel {
 .dropzone svg { width: 28px; height: 28px; color: #989CA9; }
 .ms-check svg { width: 10px; height: 10px; }
 .kpi-trend svg { width: 11px; height: 11px; }
+
+.pj-badge.blue { background: var(--t-accent-soft); color: var(--t-accent-dark); }
+.pj-badge svg, .pj-note-alert svg { width: 11px; height: 11px; vertical-align: -2px; }

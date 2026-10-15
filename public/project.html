@@ -5,17 +5,18 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Folha — Tornang</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="with-rail">
 <aside class="rail" id="rail">
-  <div class="rail-logo" id="railLogo">🏭</div>
+  <div class="rail-logo" id="railLogo"><i data-lucide="factory"></i></div>
   <nav class="rail-nav">
-    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <a class="rail-item" href="dashboard.html" title="Dashboard"><i data-lucide="layout-dashboard"></i><span class="rail-label">Dashboard</span></a>
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
-    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais"><i data-lucide="map-pin"></i><span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas"><i data-lucide="truck"></i><span class="rail-label">Motoristas</span></button>
   </nav>
 </aside>
 <div class="topbar">
@@ -27,9 +28,9 @@
         <span class="chip-name" id="chipName"></span>
       </button>
       <div class="dropdown" id="userMenu" hidden>
-        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
-        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
-        <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
+        <button class="dropdown-item" data-go="company.html"><i data-lucide="building-2"></i> Minha empresa</button>
+        <button class="dropdown-item" data-go="account.html"><i data-lucide="user"></i> Meu usuário</button>
+        <button class="dropdown-item" data-go="collaborators.html"><i data-lucide="users"></i> Colaboradores</button>
         <hr>
         <button class="dropdown-item danger" id="menuLogout">Sair</button>
       </div>
@@ -72,7 +73,7 @@
   <div class="pj-viewer-top">
     <div class="pj-viewer-title"><span id="pjViewerName"></span><span class="pj-viewer-count" id="pjViewerCount"></span></div>
     <div class="pj-viewer-actions">
-      <a class="btn ghost small" id="pjViewerDl" href="#" target="_blank">⬇️ Baixar</a>
+      <a class="btn ghost small" id="pjViewerDl" href="#" target="_blank"><i data-lucide="download"></i> Baixar</a>
       <button class="btn ghost small" id="pjViewerClose">✕ Fechar</button>
     </div>
   </div>
@@ -102,6 +103,7 @@ async function api(path, opts = {}) {
   if (!res.ok) throw new Error(data.error || 'Erro');
   return data;
 }
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 function fmtDate(d) { return d ? String(d).slice(0, 10).split('-').reverse().join('/') : '—'; }
 function projectLabel(p) { return p.name ? p.client_name + ' — ' + p.name : p.client_name; }
 const HIST_LABELS = { created: 'Folha criada', accepted: 'Assumida', finished: 'Concluída', passed: 'Passada para', released: 'Liberada para produção', route_updated: 'Rota atualizada', task_accepted: 'Tarefa assumida', task_done: 'Tarefa concluída', archived: 'Arquivada', unarchived: 'Desarquivada', items_added: 'Itens adicionados', docs_added: 'Documentos adicionados', doc_deleted: 'Documento excluído' };
@@ -116,7 +118,7 @@ function timeAgo(s) {
   if (diff < 172800) return 'ontem';
   return String(s).slice(0, 10).split('-').reverse().join('/');
 }
-const NOTE_ICONS = { 'Problema mecânico': '🔧', 'Falta de material': '📦', 'Aguardando cliente': '⏳', 'Alerta geral': '⚠️', 'Emergência médica': '🚑', 'Incêndio': '🔥' };
+const NOTE_ICONS = { 'Problema mecânico': '<i data-lucide="wrench"></i>', 'Falta de material': '<i data-lucide="package"></i>', 'Aguardando cliente': '<i data-lucide="clock"></i>', 'Alerta geral': '<i data-lucide="alert-triangle"></i>', 'Emergência médica': '<i data-lucide="ambulance"></i>', 'Incêndio': '<i data-lucide="fire"></i>' };
 function updateNoteCount() {
   const nc = document.getElementById('pjNoteCount');
   nc.textContent = (PJ.notes || []).length;
@@ -132,15 +134,15 @@ function ringSvg(pct) {
   const dash = pct == null ? 0 : Math.max(0, Math.min(100, pct));
   return `<svg class="pj-ring" viewBox="0 0 42 42" width="72" height="72" role="img" aria-label="${val} concluído">
     <circle cx="21" cy="21" r="15.9155" fill="none" stroke="#ECEEF2" stroke-width="4.5"></circle>
-    ${dash > 0 ? `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="#3859F6" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${dash} ${100 - dash}" stroke-dashoffset="25"></circle>` : ''}
+    ${dash > 0 ? `<circle cx="21" cy="21" r="15.9155" fill="none" stroke="#0D9488" stroke-width="4.5" stroke-linecap="round" stroke-dasharray="${dash} ${100 - dash}" stroke-dashoffset="25"></circle>` : ''}
     <text x="21" y="25" text-anchor="middle" font-size="9.5" font-weight="800" fill="#202433">${val}</text>
   </svg>`;
 }
 
 function statusPill(p) {
   return p.status === 'completed' ? '<span class="pj-badge green">Concluída</span>'
-    : p.status === 'at_warehouse' ? '<span class="pj-badge blue">📦 No armazém</span>'
-    : p.status === 'delivered' ? '<span class="pj-badge green">🚚 Entregue</span>'
+    : p.status === 'at_warehouse' ? '<span class="pj-badge blue"><i data-lucide="package"></i> No armazém</span>'
+    : p.status === 'delivered' ? '<span class="pj-badge green"><i data-lucide="truck"></i> Entregue</span>'
     : p.status === 'pending_release' ? '<span class="pj-badge gray">Aguardando liberação</span>'
     : '<span class="pj-badge orange">Em produção</span>';
 }
@@ -159,9 +161,9 @@ function renderHero() {
     <div class="pj-pills">
       ${statusPill(p)}
       ${['completed', 'at_warehouse', 'delivered'].includes(p.status)
-        ? (p.priority ? '<span class="pj-badge red">⚠️ Urgente</span>' : '')
-        : `<button class="pj-badge ${p.priority ? 'red' : 'gray'} pj-pill-btn" onclick="togglePriority()" title="${p.priority ? 'Remover urgência' : 'Marcar como urgente'}">${p.priority ? '⚠️ Urgente' : 'Marcar urgente'}</button>`}
-          ${p.archived ? '<span class="pj-badge gray">🗄️ Arquivada</span>' : ''}
+        ? (p.priority ? '<span class="pj-badge red"><i data-lucide="alert-triangle"></i> Urgente</span>' : '')
+        : `<button class="pj-badge ${p.priority ? 'red' : 'gray'} pj-pill-btn" onclick="togglePriority()" title="${p.priority ? 'Remover urgência' : 'Marcar como urgente'}">${p.priority ? '<i data-lucide="alert-triangle"></i> Urgente' : 'Marcar urgente'}</button>`}
+          ${p.archived ? '<span class="pj-badge gray"><i data-lucide="archive"></i> Arquivada</span>' : ''}
       ${p.status === 'pending_release' ? '<button class="btn primary small" onclick="releaseFolha()">Liberar para produção</button>' : ''}
     </div>
     <div class="pj-hero-grid">
@@ -180,6 +182,7 @@ function renderHero() {
       <div class="pj-meta-item"><div class="k">Responsável</div><div class="v">${esc(p.worker_name || 'Aguardando')}</div></div>
       <div class="pj-meta-item"><div class="k">Criada em</div><div class="v">${fmtDate(p.created_at)}</div></div>
     </div>`;
+    refreshIcons();
 }
 
 // ===== Abas =====
@@ -201,6 +204,7 @@ function renderTab() {
   else if (currentTab === 'notes') renderNotesTab(el);
   else if (currentTab === 'members') renderMembersTab(el);
   else renderActivityTab(el);
+  refreshIcons();
 }
 
 function docTile(d, i) {
@@ -208,7 +212,7 @@ function docTile(d, i) {
   return `<div class="doc-tile" title="Clique para visualizar" onclick="openViewer(${i})">
     ${(d.mime_type || '').startsWith('image/')
       ? `<img class="doc-thumb" src="/api/documents/${d.id}/file?token=${token}" alt="" loading="lazy">`
-      : `<div class="doc-thumb icon">${(d.mime_type || '').includes('pdf') ? '📕' : '📄'}</div>`}
+      : `<div class="doc-thumb icon">${(d.mime_type || '').includes('pdf') ? '<i data-lucide="file-text"></i>' : '<i data-lucide="file"></i>'}</div>`}
     <div class="doc-name" title="${esc(d.original_name)}">${esc(d.original_name)}</div>
     <div class="doc-actions">
       <a class="btn ghost small" href="/api/documents/${d.id}/file?token=${token}&dl=1" onclick="event.stopPropagation()">Baixar</a>
@@ -247,7 +251,7 @@ function renderWorkTab(el) {
 function renderFilesTab(el) {
   const { documents } = PJ;
   el.innerHTML = `
-    <div class="pj-dropzone" id="pjDropzone">⬆️ Clique ou arraste seus arquivos
+    <div class="pj-dropzone" id="pjDropzone"><i data-lucide="upload"></i> Clique ou arraste seus arquivos
       <input type="file" id="pjFiles" multiple hidden>
     </div>
     ${documents.length ? '<div class="doc-grid">' + documents.map((d, i) => docTile(d, i)).join('') + '</div>'
@@ -268,7 +272,7 @@ function renderActivityTab(el) {
     </div>`).join('');
   el.innerHTML = `
     <div class="pj-section-head"><h2 class="pj-section-title">Atividade</h2>
-      <button class="btn ghost small" onclick="downloadHistory()">⬇️ Baixar CSV</button></div>
+      <button class="btn ghost small" onclick="downloadHistory()"><i data-lucide="download"></i> Baixar CSV</button></div>
     ${rows || '<p class="empty">Sem atividade registrada ainda.</p>'}`;
 }
 async function downloadHistory() {
@@ -290,6 +294,7 @@ function renderActivityCard() {
   el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Atividade recente</h2></div>
     ${h.length ? h.map(e => `<div class="pj-act-mini"><b>${esc(HIST_LABELS[e.action] || e.action)}</b>${e.worker_name ? ` <span class="pj-act-who">· ${esc(e.worker_name)}</span>` : ''}<div class="pj-act-time">${fmtDateTime(e.created_at)}</div></div>`).join('') : '<p class="empty">Nada ainda.</p>'}
     <button class="btn ghost small" style="margin-top:10px" onclick="switchTab('activity')">Ver histórico completo</button>`;
+    refreshIcons();
 }
 function renderNotesCard() {
   const el = document.getElementById('pjNotesCard');
@@ -297,7 +302,8 @@ function renderNotesCard() {
   const last = notes.slice(0, 2);
   el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Anotações</h2>
     <button class="btn ghost small" onclick="switchTab('notes')">Ver todas</button></div>
-    ${last.length ? last.map(n => `<div class="pj-note-mini">${n.author_name ? avaHtml(n.author_name) : '<span class="pj-ava">?</span>'}<div class="pj-note-mini-body"><div class="pj-note-author">${esc(n.author_name || '?')} <span class="pj-act-time">· ${timeAgo(n.created_at)}</span>${n.is_alert ? ` <span class="pj-note-alert">${NOTE_ICONS[n.alert_type] || '⚠️'}</span>` : ''}</div><div class="pj-note-text" style="font-size:11.5px;margin-top:2px">${esc((n.note || '').slice(0, 80))}${(n.note || '').length > 80 ? '…' : ''}</div></div></div>`).join('') : '<p class="empty">Nenhuma ainda.</p>'}`;
+    ${last.length ? last.map(n => `<div class="pj-note-mini">${n.author_name ? avaHtml(n.author_name) : '<span class="pj-ava">?</span>'}<div class="pj-note-mini-body"><div class="pj-note-author">${esc(n.author_name || '?')} <span class="pj-act-time">· ${timeAgo(n.created_at)}</span>${n.is_alert ? ` <span class="pj-note-alert"><i data-lucide="${NOTE_ICONS[n.alert_type] || 'alert-triangle'}"></i></span>` : ''}</div><div class="pj-note-text" style="font-size:11.5px;margin-top:2px">${esc((n.note || '').slice(0, 80))}${(n.note || '').length > 80 ? '…' : ''}</div></div></div>`).join('') : '<p class="empty">Nenhuma ainda.</p>'}`;
+  refreshIcons();
 }
 // ===== Aba Anotações =====
 let notesFilter = 'all';
@@ -319,7 +325,7 @@ function renderNotesTab(el) {
           ${n.author_name ? avaHtml(n.author_name) : '<span class="pj-ava">?</span>'}
           <div class="pj-note-meta"><b>${esc(n.author_name || '?')}</b>
             <span class="pj-act-time" title="${esc(fmtDateTime(n.created_at))}">${timeAgo(n.created_at)}</span></div>
-          ${n.is_alert ? `<span class="pj-note-alert">${NOTE_ICONS[n.alert_type] || '⚠️'} ${esc(n.alert_type || 'Alerta')}</span>` : ''}
+          ${n.is_alert ? `<span class="pj-note-alert"><i data-lucide="${NOTE_ICONS[n.alert_type] || 'alert-triangle'}"></i> ${esc(n.alert_type || 'Alerta')}</span>` : ''}
           ${n.section_name ? `<span class="pj-task-sec">${esc(n.section_name)}</span>` : ''}
         </div>
         <div class="pj-note-text" style="font-size:13px">${esc(n.note || '')}</div>
@@ -339,9 +345,10 @@ function renderControlsCard() {
   el.innerHTML = `<div class="pj-section-head" style="margin:0 0 10px"><h2 class="pj-section-title" style="font-size:14px">Controles</h2></div>
     <p class="hint" style="margin:0 0 12px">Arquivar mantém o registro. Excluir remove permanentemente.</p>
     <div style="display:flex;gap:8px;flex-wrap:wrap">
-      <button class="btn ghost small" onclick="toggleArchive()">${p.archived ? '↩️ Restaurar' : '🗄️ Arquivar'}</button>
-      <button class="btn small pj-btn-danger" onclick="deleteFolha()">🗑️ Excluir</button>
+      <button class="btn ghost small" onclick="toggleArchive()">${p.archived ? '<i data-lucide="rotate-ccw"></i> Restaurar' : '<i data-lucide="archive"></i> Arquivar'}</button>
+      <button class="btn small pj-btn-danger" onclick="deleteFolha()"><i data-lucide="trash-2"></i> Excluir</button>
     </div>`;
+    refreshIcons();
 }
 async function toggleArchive() {
   try {
@@ -511,7 +518,7 @@ document.addEventListener('keydown', e => { if (e.key === 'Escape' && !document.
 // ===== Membros =====
 
 const AVA_TINTS = [
-  { bg: '#EAF0FE', fg: '#3859F6' },
+  { bg: '#CCF3EE', fg: '#0B7A70' },
   { bg: '#E8F7EE', fg: '#1D9E5F' },
   { bg: '#FEF3E6', fg: '#D97706' },
   { bg: '#F3EEFE', fg: '#7C3AED' },
@@ -543,6 +550,7 @@ function renderMembersCard() {
   el.innerHTML = `<div class="pj-section-head" style="margin:0 0 12px"><h2 class="pj-section-title" style="font-size:14px">Membros</h2>
     <button class="btn ghost small" onclick="switchTab('members')">Ver todos</button></div>
     ${balls ? `<div class="pj-member-stack">${balls}</div>` : '<p class="empty">Ninguém ainda.</p>'}`;
+    refreshIcons();
 }
 
 function renderMembersTab(el) {
