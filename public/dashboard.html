@@ -61,11 +61,7 @@
   <h3 class="dash-section-title">Locais</h3>
   <div class="dash-grid" id="dashGrid"></div>
   <div class="recent-card">
-    <h3 class="dash-section-title">📅 Hoje</h3>
-    <ul class="recent-list" id="todayList"></ul>
-  </div>
-  <div class="recent-card">
-    <h3 class="dash-section-title">Atividade recente</h3>
+    <h3 class="dash-section-title">📅 Atividade</h3>
     <ul class="recent-list" id="recentList"></ul>
   </div>
 </main>
@@ -104,10 +100,11 @@ function locThumb(l, cls) {
 
 function renderDash(dash) {
   const totals = dash.locations.reduce((acc, l) => ({ active: acc.active + l.active_projects, urgent: acc.urgent + l.urgent, overdue: acc.overdue + l.overdue }), { active: 0, urgent: 0, overdue: 0 });
+const plural = (n, one, many) => `${n} ${n === 1 ? one : many}`;
 document.getElementById('kpiRow').innerHTML = `
-  <div class="kpi ok"><b>${totals.active}</b><span>Folhas em produção</span></div>
-  <div class="kpi ${totals.urgent ? 'warn' : ''}"><b>${totals.urgent}</b><span>Folhas urgentes hoje</span></div>
-  <div class="kpi ${totals.overdue ? 'danger' : ''}"><b>${totals.overdue}</b><span>Folhas com atraso</span></div>`;
+  <div class="kpi ok"><b>${totals.active}</b><span>${plural(totals.active, 'Folha em produção', 'Folhas em produção')}</span></div>
+  <div class="kpi ${totals.urgent ? 'warn' : ''}"><b>${totals.urgent}</b><span>${plural(totals.urgent, 'Folha urgente hoje', 'Folhas urgentes hoje')}</span></div>
+  <div class="kpi ${totals.overdue ? 'danger' : ''}"><b>${totals.overdue}</b><span>${plural(totals.overdue, 'Folha com atraso', 'Folhas com atraso')}</span></div>`;
 
   const grid = document.getElementById('dashGrid');
   grid.innerHTML = dash.locations.map(l => `
@@ -129,14 +126,15 @@ document.getElementById('kpiRow').innerHTML = `
   grid.querySelectorAll('.open-loc').forEach(b => b.addEventListener('click', () => location.href = 'manager.html?loc=' + b.dataset.id));
 grid.querySelectorAll('.loc-card.clickable').forEach(c => c.addEventListener('click', () => location.href = 'manager.html?loc=' + c.dataset.id));
 
+  const seen = new Set();
+  const merged = [...(dash.today || []), ...(dash.recent || [])].filter(r => {
+    const key = [r.created_at, r.user_name, r.action, r.project_name || r.client_name].join('|');
+    if (seen.has(key)) return false; seen.add(key); return true;
+  });
   const rl = document.getElementById('recentList');
-  rl.innerHTML = (dash.recent || []).map(r => `
+  rl.innerHTML = merged.map(r => `
     <li><b>${esc(r.user_name || 'Sistema')}</b> <span>${esc(r.action)}</span> <span class="muted">— ${esc(r.project_name || r.client_name || '')}</span> <span class="when">${esc((r.created_at || '').slice(11, 16))}</span></li>
   `).join('') || '<li class="muted">Nenhuma atividade ainda. Ela aparece aqui assim que a equipe começar a trabalhar.</li>';
-    const tl = document.getElementById('todayList');
-  tl.innerHTML = (dash.today || []).map(r => `
-    <li><b>${esc(r.user_name || 'Sistema')}</b> <span>${esc(r.action)}</span> <span class="muted">— ${esc(r.project_name || r.client_name || '')}</span> <span class="when">${esc((r.created_at || '').slice(11, 16))}</span></li>
-  `).join('') || '<li class="muted">Nenhuma atividade hoje ainda.</li>';
 }
 
 (async () => {
