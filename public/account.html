@@ -5,33 +5,34 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Meu usuário — Tornang</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="with-rail">
   <aside class="rail" id="rail">
-  <div class="rail-logo" id="railLogo">🏭</div>
+  <div class="rail-logo" id="railLogo"><i data-lucide="factory"></i></div>
   <nav class="rail-nav">
-    <a class="rail-item" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <a class="rail-item" href="dashboard.html" title="Dashboard"><i data-lucide="layout-dashboard"></i><span class="rail-label">Dashboard</span></a>
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
-    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais"><i data-lucide="map-pin"></i><span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas"><i data-lucide="truck"></i><span class="rail-label">Motoristas</span></button>
   </nav>
   <div class="flyout" id="flyout" hidden>
     <div class="flyout-title" id="flyoutTitle"></div>
-    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
-    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
-    <a class="flyout-link" id="flyGroups" href="#">👥 Trabalhadores</a>
+    <a class="flyout-link" id="flyProjects" href="#"><i data-lucide="folder"></i> Projetos</a>
+    <a class="flyout-link" id="flySections" href="#"><i data-lucide="layers"></i> Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#"><i data-lucide="users"></i> Trabalhadores</a>
   </div>
 </aside>
 <div class="topbar">
   <div class="topbar-left">
     
-    <h1>Tornang — <span id="companyName"></span></h1>
+    <h1>Meu usuário</h1>
   </div>
   <div class="topbar-right">
     <div class="bell-wrap">
-      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+<button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
       <div class="notif-panel" id="notifPanel" hidden>
         <div class="notif-empty">Sem notificações por enquanto.</div>
       </div>
@@ -42,9 +43,9 @@
         <span class="chip-name" id="chipName"></span>
       </button>
       <div class="dropdown" id="userMenu" hidden>
-        <button class="dropdown-item" data-go="company.html">🏢 Minha empresa</button>
-        <button class="dropdown-item" data-go="account.html">👤 Meu usuário</button>
-        <button class="dropdown-item" data-go="collaborators.html">👥 Colaboradores</button>
+<button class="dropdown-item" data-go="company.html"><i data-lucide="building-2"></i> Minha empresa</button>
+<button class="dropdown-item" data-go="account.html"><i data-lucide="user"></i> Meu usuário</button>
+<button class="dropdown-item" data-go="collaborators.html"><i data-lucide="users"></i> Colaboradores</button>
         <hr>
         <button class="dropdown-item danger" id="menuLogout">Sair</button>
       </div>
@@ -133,6 +134,7 @@ function saveUser() { localStorage.setItem('user', JSON.stringify(user)); }
 function setAvatar(el, withDot) {
   el.innerHTML = (user.avatar ? `<img src="${esc(user.avatar)}" alt="Foto de perfil">` : `<span class="avatar-initial">${esc((user.name || '?').trim()[0].toUpperCase())}</span>`) + (withDot ? '<span class="status-dot"></span>' : '');
 }
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 function renderProfile() {
   setAvatar(document.getElementById('chipAvatar'), true);
   setAvatar(document.getElementById('bigAvatar'), false);
@@ -143,7 +145,7 @@ function renderProfile() {
 
 (async () => {
   const { company, user: fresh } = await api('/api/company');
-  document.getElementById('companyName').textContent = company.name || '';
+  
   user = { ...user, ...fresh };
   saveUser();
   document.getElementById('aName').value = user.name || '';
@@ -262,7 +264,7 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
   location.href = 'index.html';
 });
 
-
+refreshIcons();
 
 
 </script>
