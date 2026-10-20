@@ -1175,3 +1175,7 @@ body > .tabs ~ .panel {
 
 .pj-badge.blue { background: var(--t-accent-soft); color: var(--t-accent-dark); }
 .pj-badge svg, .pj-note-alert svg { width: 11px; height: 11px; vertical-align: -2px; }
+
+/* ==================== v6.1 cleanup — último azul antigo + ícones dos portais ==================== */
+.pj-dropzone.dragover { border-color: var(--t-accent); background: var(--t-accent-soft); color: var(--t-accent-dark); }
+.portal-card .icon svg { width: 32px; height: 32px; color: var(--t-accent); }

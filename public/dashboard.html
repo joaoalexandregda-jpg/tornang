@@ -3,25 +3,26 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Dashboard — Flex</title>
+<title>Dashboard — Tornang</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="with-rail">
 <aside class="rail" id="rail">
-  <div class="rail-logo" id="railLogo">🏭</div>
+  <div class="rail-logo" id="railLogo"><i data-lucide="factory"></i></div>
   <nav class="rail-nav">
-    <a class="rail-item active" href="dashboard.html" title="Dashboard">📊<span class="rail-label">Dashboard</span></a>
+    <a class="rail-item" href="dashboard.html" title="Dashboard"><i data-lucide="layout-dashboard"></i><span class="rail-label">Dashboard</span></a>
     <div class="rail-sep"></div>
     <div id="locIcons"></div>
     <div class="rail-sep"></div>
-    <a class="rail-item" href="locations.html" title="Gerenciar Locais">📍<span class="rail-label">Gerenciar Locais</span></a>
-    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas">🚚<span class="rail-label">Motoristas</span></button>
+    <a class="rail-item" href="locations.html" title="Gerenciar Locais"><i data-lucide="map-pin"></i><span class="rail-label">Gerenciar Locais</span></a>
+    <button class="rail-item" id="driversBtn" title="Gerenciar Motoristas"><i data-lucide="truck"></i><span class="rail-label">Motoristas</span></button>
   </nav>
   <div class="flyout" id="flyout" hidden>
     <div class="flyout-title" id="flyoutTitle"></div>
-    <a class="flyout-link" id="flyProjects" href="#">📁 Projetos</a>
-    <a class="flyout-link" id="flySections" href="#">🗂️ Seções</a>
-  <a class="flyout-link" id="flyGroups" href="#">👥 Trabalhadores</a>
+    <a class="flyout-link" id="flyProjects" href="#"><i data-lucide="folder"></i> Projetos</a>
+    <a class="flyout-link" id="flySections" href="#"><i data-lucide="layers"></i> Seções</a>
+    <a class="flyout-link" id="flyGroups" href="#"><i data-lucide="users"></i> Trabalhadores</a>
   </div>
 </aside>
 
@@ -32,7 +33,7 @@
     </div>
     <div class="topbar-right">
       <div class="bell-wrap">
-        <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
+        <button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
         <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
       </div>
       <div class="menu-wrap">
@@ -61,7 +62,7 @@
   <h3 class="dash-section-title">Locais</h3>
   <div class="dash-grid" id="dashGrid"></div>
   <div class="recent-card">
-    <h3 class="dash-section-title">📅 Atividade</h3>
+    <h3 class="dash-section-title"><i data-lucide="calendar"></i> Atividade</h3>
     <ul class="recent-list" id="recentList"></ul>
   </div>
 </main>
@@ -172,6 +173,7 @@ document.getElementById('menuLogout').addEventListener('click', async () => {
 
 
 </script>
+<script>if (window.lucide) lucide.createIcons();</script>
 <script src="/rail.js"></script>
 <script src="/bell.js"></script>
 </body>
