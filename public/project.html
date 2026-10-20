@@ -22,6 +22,10 @@
 <div class="topbar">
   <h1>Tornang — <span id="companyName"></span></h1>
   <div class="topbar-right">
+        <div class="bell-wrap">
+      <button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
+      <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
+    </div>
     <div class="menu-wrap">
       <button class="chip" id="chipBtn">
         <span class="avatar" id="chipAvatar"></span>
@@ -634,6 +638,7 @@ setInterval(async () => {
     renderHero(); renderMembersCard(); renderActivityCard(); renderNotesCard(); renderControlsCard(); updateNoteCount(); renderTab();
   } catch (e) {}
 }, 3000);
+refreshIcons();
 </script>
 <script src="/rail.js"></script>
 <script src="/bell.js"></script>
