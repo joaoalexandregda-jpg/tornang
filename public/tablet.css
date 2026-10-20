@@ -162,3 +162,17 @@ button { font: inherit; cursor: pointer; }
   .tb-columns { flex-direction: column; }
   .tb-list { overflow: visible; }
 }
+
+/* ==================== v6.1 — ícones Lucide ==================== */
+.tb-icon-btn svg, .tb-col h2 svg { width: 18px; height: 18px; vertical-align: -3px; }
+.tb-icon-btn svg { margin-right: 4px; }
+.tb-emergency-strip svg { width: 20px; height: 20px; vertical-align: -4px; margin-right: 8px; }
+.tb-emergency-fab svg { width: 30px; height: 30px; color: #fff; }
+.tb-modal h3 svg { width: 18px; height: 18px; vertical-align: -3px; margin-right: 6px; }
+.tb-chips button svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 5px; }
+.tb-emerg-grid button svg { width: 18px; height: 18px; vertical-align: -3px; margin-right: 8px; }
+.tb-btn-primary svg, .tb-btn-ghost svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 6px; }
+.tb-doc-thumb svg, .tb-thumb-placeholder svg { width: 32px; height: 32px; color: #94A3B8; }
+.tb-ok-chip svg, .tb-warn svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; }
+.tb-count svg { width: 12px; height: 12px; vertical-align: -2px; color: #DC2626; }
+.tb-notif-actions button svg, .tb-note b svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 4px; }

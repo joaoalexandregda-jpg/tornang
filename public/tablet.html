@@ -7,12 +7,13 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Tornang — Tablet</title>
 <link rel="stylesheet" href="/tablet.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="tb-body">
 
 <!-- ===== TELA INICIAL ===== -->
 <div id="tbHome" class="tb-screen">
-  <button class="tb-emergency-strip" onclick="openEmergency()">🚨 EMERGÊNCIA — incêndio ou emergência médica</button>
+  <button class="tb-emergency-strip" onclick="openEmergency()"><i data-lucide="siren"></i> EMERGÊNCIA — incêndio ou emergência médica</button>
   <header class="tb-header">
     <div>
       <h1>FILA DE HOJE — <span id="tbSection">…</span></h1>
@@ -20,18 +21,18 @@
     </div>
     <div class="tb-header-actions">
       <div class="tb-user" id="tbUser"></div>
-      <button class="tb-icon-btn" id="tbBell">🔔<span class="tb-badge-count" id="tbBellBadge" hidden></span></button>
-      <button class="tb-icon-btn" id="tbSound">🔊 Som</button>
-      <button class="tb-icon-btn" onclick="location.href='/worker.html'" title="Modo desktop">🖥️</button>
+      <button class="tb-icon-btn" id="tbBell"><i data-lucide="bell"></i><span class="tb-badge-count" id="tbBellBadge" hidden></span></button>
+      <button class="tb-icon-btn" id="tbSound"><i data-lucide="volume-2"></i> Som</button>
+      <button class="tb-icon-btn" onclick="location.href='/worker.html'" title="Modo desktop"><i data-lucide="monitor"></i></button>
     </div>
   </header>
   <main class="tb-columns">
     <section class="tb-col">
-      <h2>📥 NA FILA</h2>
+      <h2><i data-lucide="inbox"></i> NA FILA</h2>
       <div class="tb-list" id="tbAvailable"></div>
     </section>
     <section class="tb-col">
-      <h2>🛠️ MINHAS</h2>
+      <h2><i data-lucide="hammer"></i> MINHAS</h2>
       <div class="tb-list" id="tbMine"></div>
     </section>
   </main>
@@ -50,15 +51,15 @@
     </div>
     <div class="tb-meta" id="tbMeta"></div>
     <div class="tb-timeline" id="tbTimeline"></div>
-    <h3 class="tb-docs-title">📎 Documentos</h3>
+    <h3 class="tb-docs-title"><i data-lucide="paperclip"></i> Documentos</h3>
     <div class="tb-docs" id="tbDocs"></div>
     <p class="tb-swipe-hint">deslize para a próxima folha ›</p>
   </div>
   <div class="tb-detail-actions">
-    <button class="tb-btn-ghost" id="tbNotesBtn">💬 Anotações</button>
-    <button class="tb-btn-primary" id="tbFinishBtn">✅ CONCLUIR E PASSAR</button>
+    <button class="tb-btn-ghost" id="tbNotesBtn"><i data-lucide="message-circle"></i> Anotações</button>
+    <button class="tb-btn-primary" id="tbFinishBtn"><i data-lucide="check"></i> CONCLUIR E PASSAR</button>
   </div>
-  <button class="tb-emergency-fab" id="tbEmergFab" onclick="openEmergency()">🚨</button>
+  <button class="tb-emergency-fab" id="tbEmergFab" onclick="openEmergency()"><i data-lucide="siren"></i></button>
 </div>
 
 <!-- ===== Sino ===== -->
@@ -70,12 +71,12 @@
 <!-- ===== Anotações ===== -->
 <div class="tb-overlay" id="tbNotesModal" hidden>
   <div class="tb-modal">
-    <h3>💬 Anotações</h3>
+    <h3><i data-lucide="message-circle"></i> Anotações</h3>
     <div class="tb-notes-list" id="notesList"></div>
     <div class="tb-chips">
-      <button onclick="sendNote(true,'Problema mecânico')">⚠️ Problema mecânico</button>
-      <button onclick="sendNote(true,'Falta de material')">📦 Falta de material</button>
-      <button onclick="sendNote(true,'Aguardando cliente')">⏳ Aguardando cliente</button>
+      <button onclick="sendNote(true,'Problema mecânico')"><i data-lucide="wrench"></i> Problema mecânico</button>
+      <button onclick="sendNote(true,'Falta de material')"><i data-lucide="package"></i> Falta de material</button>
+      <button onclick="sendNote(true,'Aguardando cliente')"><i data-lucide="clock"></i> Aguardando cliente</button>
     </div>
     <textarea class="tb-notes-area" id="noteText" rows="3" placeholder="Escreva uma anotação sobre esta folha..."></textarea>
     <div class="tb-modal-actions">
@@ -89,11 +90,11 @@
 <!-- ===== Emergência ===== -->
 <div class="tb-overlay" id="tbEmergModal" hidden>
   <div class="tb-modal">
-    <h3>🚨 Emergência</h3>
+    <h3><i data-lucide="siren"></i> Emergência</h3>
     <p>Selecione o tipo. Todos os gestores serão notificados imediatamente.</p>
     <div class="tb-emerg-grid">
-      <button class="tb-emerg-med" onclick="sendEmergency('Emergência médica')">🚑 Emergência médica</button>
-      <button class="tb-emerg-fire" onclick="sendEmergency('Incêndio')">🔥 Incêndio</button>
+      <button class="tb-emerg-med" onclick="sendEmergency('Emergência médica')"><i data-lucide="cross"></i> Emergência médica</button>
+      <button class="tb-emerg-fire" onclick="sendEmergency('Incêndio')"><i data-lucide="flame"></i> Incêndio</button>
     </div>
     <div class="tb-modal-actions">
       <button class="tb-btn-ghost" onclick="tbEmergModal.hidden = true">Cancelar</button>
@@ -126,9 +127,10 @@ async function api(path, opts = {}) {
 }
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 
 // Cores estáveis por cliente (linha do tempo) e por pessoa (avatares)
-const PALETTE = ['#2563EB', '#16A34A', '#7C3AED', '#EA580C', '#0D9488', '#D6336C'];
+const PALETTE = ['#0D9488', '#16A34A', '#7C3AED', '#EA580C', '#D97706', '#D6336C'];
 function colorFor(name) {
   let h = 0;
   for (const ch of String(name || '?')) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
@@ -168,7 +170,7 @@ function playAlert(times = 2) {
   } catch (e) {}
 }
 document.addEventListener('pointerdown', () => { try { playAlert.ctx = playAlert.ctx || new (window.AudioContext || window.webkitAudioContext)(); playAlert.ctx.resume(); } catch (e) {} });
-function renderSound() { $('tbSound').textContent = soundOn ? '🔊 Som' : '🔇 Som'; $('tbSound').classList.toggle('tb-sound-on', soundOn); }
+function renderSound() { $('tbSound').innerHTML = '<i data-lucide="' + (soundOn ? 'volume-2' : 'volume-x') + '"></i> Som'; $('tbSound').classList.toggle('tb-sound-on', soundOn); }
 $('tbSound').addEventListener('click', () => { soundOn = !soundOn; localStorage.setItem('tbSound', soundOn ? 'on' : 'off'); renderSound(); });
 
 // Estado
@@ -218,9 +220,9 @@ async function loadQueue() {
     available.forEach(p => { if (!prev.has(String(p.id))) newIds.add(p.id); });
     if (newIds.size) {
       const first = available.find(p => newIds.has(p.id));
-      showToast('🔔 Nova folha disponível — ' + (first.name || first.client_name));
+      showToast('Nova folha disponível — ' + (first.name || first.client_name));
       playAlert(3);
-      document.title = '📥 NOVA FOLHA — Tornang';
+      document.title = 'NOVA FOLHA — Tornang';
     }
   }
   knownAvailable = idsNow;
@@ -231,6 +233,7 @@ async function loadQueue() {
   $('tbMine').innerHTML = mine.length ? mine.map(p => cardHtml(p, 'mine', false)).join('') : '<p class="tb-empty">Você não tem folhas em andamento.</p>';
   $('tbAvailable').scrollTop = savA;
   $('tbMine').scrollTop = savM;
+refreshIcons();
 }
 
 function cardHtml(p, kind, isNew) {
@@ -238,7 +241,7 @@ function cardHtml(p, kind, isNew) {
   const docId = previewCache[p.id];
   const thumb = docId
     ? '<img class="tb-thumb" src="/api/documents/' + docId + '/file?token=' + token + '" alt="" loading="lazy">'
-    : '<div class="tb-thumb-placeholder">📄</div>';
+    : '<div class="tb-thumb-placeholder"><i data-lucide="file"></i></div>';
   const nm = p.name || p.project_name || '';
   const title = esc(p.client_name) + (nm ? ' — ' + esc(nm) : '');
   const extra = p.task_id ? ' · ' + esc(p.task_name || '') : '';
@@ -250,7 +253,7 @@ function cardHtml(p, kind, isNew) {
   return '<div class="tb-card' + (isNew ? ' tb-new' : '') + '"' + openCall + '>' +
     '<div class="tb-card-media"><span class="tb-chip" style="background:' + color + '"></span>' + thumb + '</div>' +
     '<div class="tb-card-info"><h3>' + title + '</h3>' +
-    '<p class="tb-count' + (isLate(p) ? ' late' : '') + '">' + (isLate(p) ? '⚠️ ' : '') + esc(countdown(p.due_date)) + extra + '</p>' +
+    '<p class="tb-count' + (isLate(p) ? ' late' : '') + '">' + (isLate(p) ? '<i data-lucide="alert-triangle"></i> ' : '') + esc(countdown(p.due_date)) + extra + '</p>' +
     btn + '</div></div>';
 }
 
@@ -303,9 +306,9 @@ function renderDetail(d) {
     const dot = r.status === 'done' ? '✓' : r.status === 'active' ? '●' : '';
     const sub = r.status === 'done' ? 'Concluída' : r.status === 'active' ? 'Em andamento' : 'Pendente';
     let chip = '';
-    if (r.status === 'active') chip = r.assigned_to
-      ? '<span class="tb-ok-chip">👤 ' + esc(r.assigned_name || 'assumida') + '</span>'
-      : '<span class="tb-warn">⏳ Ninguém aceitou ainda</span>';
+      if (r.status === 'active') chip = r.assigned_to
+      ? '<span class="tb-ok-chip"><i data-lucide="user"></i> ' + esc(r.assigned_name || 'assumida') + '</span>'
+      : '<span class="tb-warn"><i data-lucide="clock"></i> Ninguém aceitou ainda</span>';
     else if (r.status === 'done' && r.assigned_name) chip = '<span class="tb-ok-chip">✓ ' + esc(r.assigned_name) + '</span>';
     return '<div class="tb-step ' + cls + '"><div class="tb-dot">' + dot + '</div><div class="tb-step-info"><b>' + esc(r.name || 'Seção') + '</b><small>' + sub + '</small>' + chip + '</div></div>';
   }).join('');
@@ -314,14 +317,16 @@ function renderDetail(d) {
   $('tbDocs').innerHTML = current.docs.length ? current.docs.map((doc, i) => {
     const isImg = (doc.mime_type || '').startsWith('image/');
     const isPdf = (doc.mime_type || '').includes('pdf');
-    const inner = isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + token + '" alt="" loading="lazy">' : '<span>' + (isPdf ? '📕' : '📄') + '</span>';
+    const inner = isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + token + '" alt="" loading="lazy">' : '<span><i data-lucide="' + (isPdf ? 'file-text' : 'file') + '"></i></span>';
     return '<div class="tb-doc-card" onclick="openViewer(' + i + ')"><div class="tb-doc-thumb">' + inner + '</div><p class="tb-doc-name">' + esc(doc.original_name) + '</p></div>';
   }).join('') : '<p class="tb-empty">Nenhum documento nesta folha.</p>';
 
   const fb = $('tbFinishBtn');
-  if (current.type === 'task') { fb.hidden = false; fb.textContent = '✅ CONCLUIR TAREFA'; }
-  else if (current.item && current.item.can_finish) { fb.hidden = false; fb.textContent = '✅ CONCLUIR E PASSAR'; }
+  if (current.type === 'task') { fb.hidden = false; fb.innerHTML = '<i data-lucide="check"></i> CONCLUIR TAREFA'; }
+  else if (current.item && current.item.can_finish) { fb.hidden = false; fb.innerHTML = '<i data-lucide="check"></i> CONCLUIR E PASSAR'; }
   else fb.hidden = true;
+refreshIcons();
+
 }
 
 function closeDetail() { current = null; $('tbDetail').hidden = true; $('tbHome').hidden = false; loadQueue().catch(() => {}); }
@@ -351,12 +356,12 @@ async function finishFolha(id) {
   const isLast = job && job.max_step != null && Number(job.step) === Number(job.max_step);
   if (!confirm('Concluir esta folha?')) return;
   let destination = null;
-  if (isLast) destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronta para entrega ao cliente') ? 'warehouse' : 'client';
+  if (isLast) destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK =  Enviar ao armazém\nCancelar =  Pronta para entrega ao cliente') ? 'warehouse' : 'client';
   try {
     const data = await api('/api/projects/' + id + '/finish', { method: 'POST', body: JSON.stringify({ destination }) });
-    if (data.completed) alert(destination === 'client' ? '🚚 Folha pronta para entrega ao cliente!' : '📦 Folha enviada ao armazém!');
-    else if (data.waiting) alert('⏳ Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
-    else alert('✅ Folha enviada para: ' + data.next);
+    if (data.completed) alert(destination === 'client' ? 'Folha pronta para entrega ao cliente!' : 'Folha enviada ao armazém!');
+    else if (data.waiting) alert('Concluído na sua seção. Aguardando ' + data.waiting_for + 'concluir para a folha avançar.');
+    else alert('Folha enviada para: ' + data.next);
     closeDetail();
   } catch (err) { alert(err.message); }
 }
@@ -364,9 +369,9 @@ async function finishTask(taskId) {
   try {
     const info = await api('/api/tasks/' + taskId + '/next');
     let destination = null;
-    if (info.completes_project) destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronto para entrega ao cliente') ? 'warehouse' : 'client';
+    if (info.completes_project) destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK =  Enviar ao armazém\nCancelar =  Pronto para entrega ao cliente') ? 'warehouse' : 'client';
     const data = await api('/api/tasks/' + taskId + '/finish', { method: 'POST', body: JSON.stringify({ destination, next_worker_id: null }) });
-    alert('✅ Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
+    alert(' Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
     closeDetail();
   } catch (err) { alert(err.message); }
 }
@@ -404,10 +409,11 @@ async function openNotes() {
 }
 function renderNotesList(notes) {
   $('notesList').innerHTML = notes.length ? notes.map(n =>
-    '<div class="tb-note ' + (n.is_alert ? 'alert' : 'normal') + '"><b>' + (n.is_alert ? '⚠️' : '💬') + ' ' + esc(n.author_name || '?') + (n.is_alert && n.alert_type ? ' — ' + esc(n.alert_type) : '') + '</b>' +
+    '<div class="tb-note ' + (n.is_alert ? 'alert' : 'normal') + '"><b>' + (n.is_alert ? '<i data-lucide="alert-triangle"></i>' : '<i data-lucide="message-circle"></i>') + ' ' + esc(n.author_name || '?') + (n.is_alert && n.alert_type ? ' — ' + esc(n.alert_type) : '') + '</b>' +
     (n.note ? '<p>' + esc(n.note) + '</p>' : '') +
     '<time>' + esc((n.created_at || '').slice(0, 16)) + '</time></div>'
   ).join('') : '<p class="tb-empty">Nenhuma anotação ainda.</p>';
+  refreshIcons();
 }
 async function sendNote(isAlert, alertType) {
   const note = $('noteText').value.trim();
@@ -415,7 +421,7 @@ async function sendNote(isAlert, alertType) {
   try {
     await api('/api/projects/' + current.id + '/notes', { method: 'POST', body: JSON.stringify({ note, is_alert: isAlert, alert_type: alertType }) });
     $('noteText').value = '';
-    $('notesMsg').textContent = isAlert ? '⚠️ Alerta enviado ao gestor.' : 'Anotação salva.';
+    $('notesMsg').textContent = isAlert ? 'Alerta enviado ao gestor.' : 'Anotação salva.';
     renderNotesList((await api('/api/projects/' + current.id + '/notes')).notes || []);
   } catch (err) { $('notesMsg').textContent = err.message; }
 }
@@ -426,7 +432,7 @@ async function sendEmergency(type) {
   try {
     await api('/api/emergency', { method: 'POST', body: JSON.stringify({ type, project_id: current ? current.id : null }) });
     $('tbEmergModal').hidden = true;
-    alert('🚨 ' + type + ' enviada. Todos os gestores foram notificados.');
+    alert(type + ' enviada. Todos os gestores foram notificados.');
   } catch (err) { alert(err.message); }
 }
 
@@ -444,9 +450,10 @@ function renderBell() {
   $('tbBellPanel').innerHTML = bellData.length ? bellData.map(n => {
     const isJoin = n.type === 'join_request' && n.ref_id;
     return '<div class="tb-notif"><b>' + esc(n.title) + '</b>' + (n.body ? '<p>' + esc(n.body) + '</p>' : '') +
-      (isJoin ? '<div class="tb-notif-actions"><button class="tb-accept" onclick="answerJoin(' + n.ref_id + ',\'accept\')">✅ Aceitar</button><button class="tb-recuse" onclick="answerJoin(' + n.ref_id + ',\'recuse\')">❌ Recusar</button></div>' : '') +
+      (isJoin ? '<div class="tb-notif-actions"><button class="tb-accept" onclick="answerJoin(' + n.ref_id + ',\'accept\')"><i data-lucide="check"></i> Aceitar</button><button class="tb-recuse" onclick="answerJoin(' + n.ref_id + ',\'recuse\')"><i data-lucide="x"></i> Recusar</button></div>' : '') +
       '<time>' + esc((n.created_at || '').slice(0, 16)) + '</time></div>';
   }).join('') : '<div class="tb-bell-empty">Sem notificações por enquanto.</div>';
+  refreshIcons();
 }
 $('tbBell').addEventListener('click', async () => {
   const panel = $('tbBellPanel');
@@ -487,7 +494,9 @@ document.addEventListener('keydown', e => {
 });
 
 // Início
+
 renderSound();
+refreshIcons();
 loadMe();
 async function loop() {
   try { await loadQueue(); } catch (e) {}

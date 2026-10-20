@@ -1196,3 +1196,9 @@ body > .tabs ~ .panel {
 .jb-chips button { display: inline-flex; align-items: center; gap: 5px; }
 .doc-card.upload svg, .jb-upload svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: var(--t-accent); }
 #soundBtn svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
+
+/* ==================== v6.1 — worker: topbar padronizada ==================== */
+body.worker-page > .topbar { background: #fff; color: #1F2937; border-bottom: 1px solid #E5E7EB; }
+body.worker-page > .topbar h1 { color: #1F2937; }
+body.worker-page .sec-label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: #64748B; }
+body.worker-page .sec-label svg { width: 14px; height: 14px; }
