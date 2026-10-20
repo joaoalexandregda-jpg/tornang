@@ -925,7 +925,7 @@ app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
   for (const d of db.prepare('SELECT stored_name FROM project_documents WHERE project_id = ?').all(p.id)) {
     try { fs.unlinkSync(path.join(uploadDir, d.stored_name)); } catch (e) {}
   }
-  const tx = db.transaction(() => {
+   const tx = db.transaction(() => {
     db.prepare('DELETE FROM project_tasks WHERE item_id IN (SELECT id FROM project_items WHERE project_id = ?)').run(p.id);
     db.prepare('DELETE FROM project_items WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM project_documents WHERE project_id = ?').run(p.id);
@@ -935,9 +935,10 @@ app.delete('/api/projects/:id', auth, managerOnly, (req, res) => {
     db.prepare('DELETE FROM project_collaborators WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM join_requests WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM notifications WHERE project_id = ?').run(p.id);
+    db.prepare('DELETE FROM project_sections WHERE project_id = ?').run(p.id);
     db.prepare('DELETE FROM projects WHERE id = ?').run(p.id);
   });
-  tx();
+  try { tx(); } catch (err) { console.error('Erro ao excluir folha', p.id, err); return res.status(500).json({ error: 'Erro ao excluir a folha: ' + err.message }); }
   res.json({ ok: true });
 });
 
@@ -1311,7 +1312,7 @@ app.post('/api/projects/:id/notes', auth, (req, res) => {
   if (isAlert) {
     const isEmergency = /emergência|incêndio/i.test(alertType || '');
     db.prepare(`INSERT INTO notifications (company_id, role, type, title, body, project_id) VALUES (?, 'manager', ?, ?, ?, ?)`)
-      .run(me.company_id, isEmergency ? 'emergency' : 'alert', (isEmergency ? '🚨 ' : '⚠️ ') + (alertType || 'Alerta'), (me.name + ' — ' + (p.name || p.client_name) + (note ? ': ' + note : '')).trim(), p.id);
+      .run(me.company_id, isEmergency ? 'emergency' : 'alert', (alertType || 'Alerta'), (me.name + ' — ' + (p.name || p.client_name) + (note ? ': ' + note : '')).trim(), p.id);
   }
   res.json({ ok: true, id: info.lastInsertRowid });
 });
@@ -1341,7 +1342,7 @@ app.post('/api/projects/:id/alert', auth, (req, res) => {
     if (p2) { projectId = p2.id; context += ' — Folha: ' + (p2.name || p2.client_name); }
   }
   const info = db.prepare('INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)')
-    .run(me.company_id, null, isEmergency ? 'emergency' : 'alert', (isEmergency ? '🚨 ' : '⚠️ ') + (alertType || 'Alerta'), (me.name + ' — ' + (p.name || p.client_name) + (note ? ': ' + note : '')).trim(), p.id);
+    .run(me.company_id, null, isEmergency ? 'emergency' : 'alert', (alertType || 'Alerta'), (me.name + ' — ' + (p.name || p.client_name) + (note ? ': ' + note : '')).trim(), p.id);
   res.json({ ok: true, id: info.lastInsertRowid });
 });
 
@@ -1403,7 +1404,7 @@ app.post('/api/emergency', auth, (req, res) => {
     if (p) { projectId = p.id; context += ' — Folha: ' + (p.name || p.client_name); }
   }
   db.prepare(`INSERT INTO notifications (company_id, role, type, title, body, project_id) VALUES (?, 'manager', 'emergency', ?, ?, ?)`)
-    .run(me.company_id, '🚨 ' + type, context, projectId);
+    .run(me.company_id, type, context, projectId);
   res.json({ ok: true });
 });
 

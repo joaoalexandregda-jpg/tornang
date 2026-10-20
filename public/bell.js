@@ -1,9 +1,12 @@
-// ===== v5.9.1: sino compartilhado (abas, emergências, banner, polling) =====
+// ===== v6.1: sino compartilhado (abas, emergências, banner, polling) + ícones Lucide =====
 (function () {
   const token = localStorage.getItem('token');
   if (!token) return;
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  function refreshIcons() { if (window.lucide) lucide.createIcons(); }
+  const TYPE_ICONS = { step_done: 'check', alert: 'alert-triangle', emergency: 'siren', section_arrival: 'inbox', join_request: 'user-plus' };
+
   async function apiGet(path) {
     const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });
     return res.json().catch(() => ({}));
@@ -25,7 +28,7 @@
     const rest = list.filter(n => n.type !== 'emergency');
     const rows = [...emgs, ...rest].map(n => `
       <div class="notif-item ${n.type === 'emergency' ? 'note-emergency' : n.read ? '' : 'unread'}">
-        <b>${esc(n.title)}</b>
+        <b><i data-lucide="${TYPE_ICONS[n.type] || 'bell'}"></i> ${esc(n.title)}</b>
         <p>${esc(n.body || '')}</p>
         <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
         ${n.type === 'emergency' && !n.read ? '<button class="emg-ack" data-id="' + n.id + '">✕ Entendido</button>' : ''}
@@ -33,12 +36,13 @@
     panel.innerHTML = `
       <div class="notif-tabs">
         <button data-tab="all" class="${notifTab === 'all' ? 'on' : ''}">Todas</button>
-        <button data-tab="join" class="${notifTab === 'join' ? 'on' : ''}">🤝 Pedidos</button>
-        <button data-tab="alerts" class="${notifTab === 'alerts' ? 'on' : ''}">⚠️ Alertas</button>
-        <button data-tab="emg" class="${notifTab === 'emg' ? 'on' : ''}">🚨 Emergências</button>
+        <button data-tab="join" class="${notifTab === 'join' ? 'on' : ''}"><i data-lucide="user-plus"></i> Pedidos</button>
+        <button data-tab="alerts" class="${notifTab === 'alerts' ? 'on' : ''}"><i data-lucide="alert-triangle"></i> Alertas</button>
+        <button data-tab="emg" class="${notifTab === 'emg' ? 'on' : ''}"><i data-lucide="siren"></i> Emergências</button>
       </div>
       ${list.length ? rows : '<div class="notif-empty">Sem notificações por enquanto.</div>'}
       <div class="notif-actions"><button id="markAllRead">Marcar todas como lidas</button></div>`;
+    refreshIcons();
     panel.querySelectorAll('.notif-tabs button').forEach(b => b.addEventListener('click', e => {
       e.stopPropagation(); notifTab = b.dataset.tab; render();
     }));
