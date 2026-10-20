@@ -828,7 +828,8 @@ async function copyPass(id, btn) {
   try {
     const p = await fetchPass(id);
     await navigator.clipboard.writeText(p);
-    btn.textContent = '✓'; setTimeout(() => btn.textContent = '📋', 1200);
+    btn.textContent = '✓'; btn.innerHTML = '<i data-lucide="clipboard"></i>';
+    refreshIcons()
   } catch (err) { alert(err.message || 'Não foi possível copiar.'); }
 }
 
