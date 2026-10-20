@@ -5,30 +5,31 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Trabalhador — Tornang</title>
 <link rel="stylesheet" href="style.css">
+<script src="https://unpkg.com/lucide@0.294.0/dist/umd/lucide.min.js"></script>
 </head>
 <body class="worker-page">
 <div class="topbar">
   <h1>Tornang — <span id="companyName"></span></h1>
-  <div class="user">
+    <div class="user">
     <span class="badge blue" id="sectionBadge"></span>
     <span id="userName"></span>
     <div class="bell-wrap">
-      <button class="bell" id="bellBtn" aria-label="Notificações">🔔<span class="badge" id="bellBadge" hidden>0</span></button>
-      <button onclick="location.href='/tablet.html'" style="border:1px solid #E5E7EB;background:#fff;border-radius:10px;padding:8px 14px;font-weight:800;cursor:pointer;">📱 Modo Tablet</button>
+      <button class="bell" id="bellBtn" aria-label="Notificações"><i data-lucide="bell"></i><span class="badge" id="bellBadge" hidden>0</span></button>
+      <button onclick="location.href='/tablet.html'" style="border:1px solid #E5E7EB;background:#fff;border-radius:10px;padding:8px 14px;font-weight:800;cursor:pointer;"><i data-lucide="tablet"></i> Modo Tablet</button>
       <div class="notif-panel" id="notifPanel" hidden><div class="notif-empty">Sem notificações por enquanto.</div></div>
     </div>
-    <button class="btn ghost small" id="soundBtn">🔇 Som desligado</button>
+    <button class="btn ghost small" id="soundBtn"><i data-lucide="volume-x"></i> Som desligado</button>
     <button class="btn ghost small" id="logoutBtn">Sair</button>
   </div>
 </div>
 <div class="panel">
-  <h2>📥 Disponíveis na minha seção</h2>
+  <h2><i data-lucide="inbox"></i> Disponíveis na minha seção</h2>
   <div id="availableList" class="grid"></div>
-  <h2 style="margin-top:24px">👥 Na minha seção</h2>
+  <h2 style="margin-top:24px"><i data-lucide="users"></i> Na minha seção</h2>
   <div id="othersList" class="grid"></div>
-  <h2 style="margin-top:24px">🛠️ Em andamento (minhas)</h2>
+  <h2 style="margin-top:24px"><i data-lucide="hammer"></i> Em andamento (minhas)</h2>
   <div id="mineList" class="grid"></div>
-  <h2 style="margin-top:24px">📋 Meu histórico</h2>
+  <h2 style="margin-top:24px"><i data-lucide="history"></i> Meu histórico</h2>
   <div id="historyList"></div>
 </div>
 
@@ -37,9 +38,9 @@
     <h3 id="notesTitle">Anotações</h3>
     <div id="notesList" style="max-height:220px;overflow:auto;margin-bottom:12px"></div>
     <div class="quick-alerts">
-      <button class="btn ghost small" onclick="sendNote(true,'Problema mecânico')">⚠️ Problema mecânico</button>
-      <button class="btn ghost small" onclick="sendNote(true,'Falta de material')">📦 Falta de material</button>
-      <button class="btn ghost small" onclick="sendNote(true,'Aguardando cliente')">⏳ Aguardando cliente</button>
+      <button class="btn ghost small" onclick="sendNote(true,'Problema mecânico')"><i data-lucide="wrench"></i> Problema mecânico</button>
+      <button class="btn ghost small" onclick="sendNote(true,'Falta de material')"><i data-lucide="package"></i> Falta de material</button>
+      <button class="btn ghost small" onclick="sendNote(true,'Aguardando cliente')"><i data-lucide="clock"></i> Aguardando cliente</button>
     </div>
     <textarea id="noteText" rows="3" placeholder="Escreva uma anotação sobre esta folha..." style="width:100%;border:1px solid #ddd;border-radius:8px;padding:10px;font:inherit;resize:vertical"></textarea>
     <div class="modal-actions">
@@ -61,7 +62,7 @@
     </div>
     <div class="job-meta-row" id="jobMeta"></div>
     <div class="job-body">
-      <h4 style="margin:0 0 10px">📎 Documentos</h4>
+      <h4 style="margin:0 0 10px"><i data-lucide="paperclip"></i> Documentos</h4>
       <div class="doc-strip-row">
         <button class="doc-arrow" id="docPrev" aria-label="Anteriores">‹</button>
         <div class="doc-strip" id="docStrip"></div>
@@ -72,18 +73,18 @@
       <p id="docsMsg" class="muted"></p>
     </div>
     <div class="job-actions">
-      <button class="btn ghost" id="jobNotesBtn">💬 Anotações</button>
-      <button class="btn primary" id="jobFinishBtn">✅ Concluir e passar</button>
+      <button class="btn ghost" id="jobNotesBtn"><i data-lucide="message-circle"></i> Anotações</button>
+      <button class="btn primary" id="jobFinishBtn"><i data-lucide="check"></i> Concluir e passar</button>
     </div>
   </div>
 </div>
-<button class="emergency-fab" id="emergencyFab" aria-label="Emergência">🚨</button>
+<button class="emergency-fab" id="emergencyFab" aria-label="Emergência"><i data-lucide="siren"></i></button>
 <div class="modal-overlay" id="emergencyModal" hidden>
   <div class="emergency-box">
-    <h3>🚨 Emergência</h3>
+    <h3><i data-lucide="siren"></i> Emergência</h3>
     <p>Selecione o tipo. Todos os gestores serão notificados imediatamente.</p>
-    <button class="emergency-opt med" id="emergMed">🚑 Emergência médica</button>
-    <button class="emergency-opt fire" id="emergFire">🔥 Incêndio</button>
+    <button class="emergency-opt med" id="emergMed"><i data-lucide="cross"></i> Emergência médica</button>
+    <button class="emergency-opt fire" id="emergFire"><i data-lucide="flame"></i> Incêndio</button>
     <button class="btn ghost" id="emergCancel">Cancelar</button>
   </div>
 </div>
@@ -100,10 +101,10 @@ const sections = JSON.parse(localStorage.getItem('sections') || '[]');
 if (user.role !== 'worker') location.href = 'manager.html';
 document.getElementById('companyName').textContent = company.name;
 document.getElementById('userName').textContent = user.name;
-document.getElementById('sectionBadge').textContent = '📍 ' + ((sections.find(s => s.id === user.section_id) || {}).name || 'Sem seção');
+document.getElementById('sectionBadge').innerHTML = '<i data-lucide="map-pin"></i> ' + esc(((sections.find(s => s.id === user.section_id) || {}).name || 'Sem seção'));
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
-
+function refreshIcons() { if (window.lucide) lucide.createIcons(); }
 async function api(path, opts = {}) {
   const res = await fetch(path, { ...opts, headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + token } });
   const data = await res.json().catch(() => ({}));
@@ -124,7 +125,7 @@ async function loadQueue() {
     <div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
       <h3>${esc(p.client_name)}</h3>
       ${p.project_name ? `<p><b>${esc(p.project_name)}</b></p>` : ''}
-      <p>📋 <b>${esc(p.task_name)}</b> <span class="badge orange">${p.quantity > 1 ? p.quantity + 'x ' : ''}${esc(p.item_name)}</span></p>
+      <p><i data-lucide="clipboard-list"></i> <b>${esc(p.task_name)}</b> <span class="badge orange">${p.quantity > 1 ? p.quantity + 'x ' : ''}${esc(p.item_name)}</span></p>
       <p>Seção: <span class="badge blue">${esc(p.section_name)}</span> ${p.is_ordered ? '<span class="badge gray">sequência</span>' : '<span class="badge green">checklist</span>'}</p>
       <div class="row-actions" style="margin-top:10px">
         <button class="btn success small" onclick="event.stopPropagation();acceptTask(${p.task_id})">Assumir</button>
@@ -153,7 +154,7 @@ async function loadQueue() {
       ${p.name ? `<p><b>${esc(p.name)}</b></p>` : ''}
       <p>Seção: <span class="badge blue">${esc(p.section_name)}</span> <span class="badge holder-badge">com ${esc(p.holder_name)}</span></p>
       <div class="row-actions" style="margin-top:10px">
-        <button class="btn ghost small" onclick="askToJoin(${p.id})">🤝 Pedir para participar</button>
+        <button class="btn ghost small" onclick="askToJoin(${p.id})"><i data-lucide="user-plus"></i> Pedir para participar</button>
       </div>
     </div>`).join('') : '<p class="empty">Ninguém da sua seção tem folhas em andamento agora.</p>';
 
@@ -165,11 +166,11 @@ async function loadQueue() {
 <div class="item" style="cursor:pointer" onclick="openJob(${p.id})">
       <h3>${esc(p.client_name)}</h3>
       ${p.project_name ? `<p><b>${esc(p.project_name)}</b></p>` : ''}
-      <p>📋 <b>${esc(p.task_name)}</b> <span class="badge orange">${p.quantity > 1 ? p.quantity + 'x ' : ''}${esc(p.item_name)}</span></p>
+      <p><i data-lucide="clipboard-list"></i> <b>${esc(p.task_name)}</b> <span class="badge orange">${p.quantity > 1 ? p.quantity + 'x ' : ''}${esc(p.item_name)}</span></p>
       <p>Seção: <span class="badge blue">${esc(p.section_name)}</span> ${p.is_ordered ? '<span class="badge gray">sequência</span>' : '<span class="badge green">checklist</span>'}</p>
       <div class="row-actions" style="margin-top:10px">
-        <button class="btn ghost small" onclick="event.stopPropagation();openNotes(${p.id}, '${esc(p.name || p.client_name)}')">💬 Anotações</button>
-        <button class="btn primary small" onclick="event.stopPropagation();finishTask(${p.task_id})">✅ Concluir tarefa</button>
+        <button class="btn ghost small" onclick="event.stopPropagation();openNotes(${p.id}, '${esc(p.name || p.client_name)}')"><i data-lucide="message-circle"></i> Anotações</button>
+        <button class="btn primary small" onclick="event.stopPropagation();finishTask(${p.task_id})"><i data-lucide="check"></i> Concluir tarefa</button>
       </div>
     </div>`;
     }
@@ -182,12 +183,13 @@ async function loadQueue() {
       <p>Seção: <span class="badge blue">${esc(p.section_name)}</span></p>
       ${p.parallel_with ? `<p>Em paralelo com: <span class="badge orange">${esc(p.parallel_with)}</span></p>` : ''}
       <div class="row-actions" style="margin-top:10px">
-        <button class="btn ghost small" onclick="event.stopPropagation();openNotes(${p.id}, '${esc(p.name || p.client_name)}')">💬 Anotações</button>
-        ${p.can_finish ? `<button class="btn primary small" onclick="event.stopPropagation();finish(${p.id})">Concluir e passar</button>` : ''}
+        <button class="btn ghost small" onclick="event.stopPropagation();openNotes(${p.id}, '${esc(p.name || p.client_name)}')"><i data-lucide="message-circle"></i> Anotações</button>
+        ${p.can_finish ? `<button class="btn primary small" onclick="event.stopPropagation();finish(${p.id})"><i data-lucide="check"></i> Concluir e passar</button>` : ''}
       </div>
     </div>`;
   }).join('') : '<p class="empty">Você não tem folhas em andamento.</p>';
     return { available, mine };
+    refreshIcons();
 }
 
 async function accept(id) {
@@ -208,7 +210,7 @@ async function finishTask(taskId) {
   try {
     const { next, completes_project } = await api('/api/tasks/' + taskId + '/next');
     if (completes_project) {
-      destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronto para entrega ao cliente') ? 'warehouse' : 'client';
+      destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK =  Enviar ao armazém\nCancelar =  Pronto para entrega ao cliente') ? 'warehouse' : 'client';
     }
     if (next) {
       const list = next.workers.map(w => '• ' + w.name).join('\n');
@@ -219,9 +221,9 @@ async function finishTask(taskId) {
       if (chosen) nextWorkerId = chosen.id;
     }
     const data = await api('/api/tasks/' + taskId + '/finish', { method: 'POST', body: JSON.stringify({ destination, next_worker_id: nextWorkerId }) });
-    if (data.project_done) alert(destination === 'client' ? '🚚 Projeto pronto para entrega ao cliente!' : '📦 Projeto enviado ao armazém!');
-    else if (data.item_done) alert('✅ Item concluído!');
-    else alert('✅ Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
+    if (data.project_done) alert(destination === 'client' ? ' Projeto pronto para entrega ao cliente!' : ' Projeto enviado ao armazém!');
+    else if (data.item_done) alert('Item concluído!');
+    else alert(' Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
     loadQueue(); loadHistory();
   } catch (err) { alert(err.message); }
 }
@@ -232,13 +234,13 @@ async function finish(id) {
   if (!confirm('Concluir esta folha?')) return;
   let destination = null;
   if (isLast) {
-    destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronta para entrega ao cliente') ? 'warehouse' : 'client';
+    destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK =  Enviar ao armazém\nCancelar =  Pronta para entrega ao cliente') ? 'warehouse' : 'client';
   }
   try {
     const data = await api('/api/projects/' + id + '/finish', { method: 'POST', body: JSON.stringify({ destination }) });
-    if (data.completed) alert(destination === 'client' ? '🚚 Folha pronta para entrega ao cliente!' : '📦 Folha enviada ao armazém!');
-    else if (data.waiting) alert('⏳ Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
-    else alert('✅ Folha enviada para: ' + data.next);
+    if (data.completed) alert(destination === 'client' ? ' Folha pronta para entrega ao cliente!' : ' Folha enviada ao armazém!');
+    else if (data.waiting) alert(' Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
+    else alert(' Folha enviada para: ' + data.next);
     loadQueue(); loadHistory();
   } catch (err) { alert(err.message); }
 }
@@ -246,7 +248,7 @@ async function finish(id) {
 async function askToJoin(id) {
   try {
     await api('/api/projects/' + id + '/join-request', { method: 'POST' });
-    alert('🤝 Pedido enviado! Você será notificado quando responderem.');
+    alert(' Pedido enviado! Você será notificado quando responderem.');
   } catch (err) { alert(err.message); }
 }
 
@@ -263,9 +265,11 @@ async function loadHistory() {
 const bellBtn = document.getElementById('bellBtn');
 const notifPanel = document.getElementById('notifPanel');
 
+
 let knownBellTop = null;
 async function loadBell() {
   try {
+    const TYPE_ICONS = { section_arrival: 'inbox', task_assigned: 'clipboard-list', late: 'calendar-clock', alert: 'alert-triangle', emergency: 'siren', join_request: 'user-plus', join_accepted: 'user-check', join_recused: 'user-x' };
     const { notifications, unread } = await api('/api/notifications');
     const topId = notifications.length ? notifications[0].id : null;
     if (knownBellTop !== null && topId !== null && topId > knownBellTop) playAlert(2);
@@ -275,15 +279,16 @@ async function loadBell() {
     if (notifications.length) {
       notifPanel.innerHTML = notifications.map(n => `
         <div class="notif-item ${n.read ? '' : 'unread'}">
-          <b>${esc(n.title)}</b>
+          <b><i data-lucide="${TYPE_ICONS[n.type] || 'bell'}"></i> ${esc(n.title)}</b>
           <p>${esc(n.body || '')}</p>
           <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
           ${n.type === 'join_request' ? `
             <div class="row-actions" style="margin-top:8px">
-              <button class="btn success small" onclick="respondJoin(${n.ref_id}, 'accept')">✅ Aceitar</button>
-              <button class="btn ghost small" onclick="respondJoin(${n.ref_id}, 'refuse')">❌ Recusar</button>
+              <button class="btn success small" onclick="respondJoin(${n.ref_id}, 'accept')"><i data-lucide="check"></i> Aceitar</button>
+              <button class="btn ghost small" onclick="respondJoin(${n.ref_id}, 'refuse')"><i data-lucide="x"></i> Recusar</button>
             </div>` : ''}
         </div>`).join('');
+      refreshIcons();
     }
   } catch (e) {}
 }
@@ -321,20 +326,13 @@ async function openNotes(id, title) {
   document.getElementById('notesModal').hidden = false;
 }
 
-const noteIcons = {
-  'Problema mecânico': '🔧',
-  'Falta de material': '📦',
-  'Aguardando cliente': '⏳',
-  'Alerta geral': '⚠️',
-  'Emergência médica': '🚑',
-  'Incêndio': '🔥'
-};
+const noteIcons = { 'Problema mecânico': '<i data-lucide="wrench"></i>', 'Falta de material': '<i data-lucide="package"></i>', 'Aguardando cliente': '<i data-lucide="clock"></i>', 'Alerta geral': '<i data-lucide="alert-triangle"></i>', 'Emergência médica': '<i data-lucide="cross"></i>', 'Incêndio': '<i data-lucide="flame"></i>' };
 
 async function renderNotes() {
   const { notes } = await api('/api/projects/' + notesProjectId + '/notes');
   document.getElementById('notesList').innerHTML = notes.length ? notes.map(n => {
     const isEmergency = /emergência|incêndio/i.test(n.alert_type || '');
-    const icon = n.is_alert ? (noteIcons[n.alert_type] || '⚠️') : '💬';
+    const icon = (n.is_alert ? (noteIcons[n.alert_type] || '<i data-lucide="alert-triangle"></i>') : '<i data-lucide="message-circle"></i>')
     return `
     <div class="notif-item ${isEmergency ? 'note-emergency' : n.is_alert ? 'unread' : ''}">
       <b>${icon} ${esc(n.author_name || '?')}${n.section_name ? ' · ' + esc(n.section_name) : ''}${n.is_alert ? ' — ' + esc(n.alert_type || 'Alerta') : ''}</b>
@@ -342,6 +340,7 @@ async function renderNotes() {
       <span class="when">${esc((n.created_at || '').slice(0, 16))}</span>
     </div>`;
   }).join('') : '<p class="empty">Nenhuma anotação ainda.</p>';
+  refreshIcons();
 }
 
 async function sendNote(isAlert, alertType) {
@@ -351,7 +350,7 @@ async function sendNote(isAlert, alertType) {
   try {
     await api('/api/projects/' + notesProjectId + '/notes', { method: 'POST', body: JSON.stringify({ note, is_alert: isAlert, alert_type: alertType }) });
     document.getElementById('noteText').value = '';
-    msg.textContent = isAlert ? '⚠️ Alerta enviado ao gestor.' : 'Anotação salva.';
+    msg.innerHTML = isAlert ? '<i data-lucide="alert-triangle"></i> Alerta enviado ao gestor.' : 'Anotação salva.';
     await renderNotes();
   } catch (err) { msg.textContent = err.message; }
 }
@@ -383,11 +382,11 @@ async function renderDocsStrip() {
       const isImg = (d.mime_type || '').startsWith('image/');
       const isPdf = (d.mime_type || '').includes('pdf');
       return `<div class="doc-card" data-name="${esc(d.original_name)}" data-url="/api/documents/${d.id}/file?token=${token}" data-type="${isImg ? 'img' : isPdf ? 'pdf' : 'other'}">
-        ${isImg ? `<img src="/api/documents/${d.id}/file?token=${token}" alt="" loading="lazy">` : `<div class="doc-icon">${isPdf ? '📕' : '📄'}</div>`}
+        ${isImg ? `<img src="/api/documents/${d.id}/file?token=${token}" alt="" loading="lazy">` : `<div class="doc-icon">${isPdf ? '<i data-lucide="file-text"></i>' : '<i data-lucide="file"></i>'}</div>`}
         <p>${esc(d.original_name)}</p>
       </div>`;
     });
-    docStrip.innerHTML = cards.join('') + '<div class="doc-card upload" id="docUploadCard">📎<p>Clique ou arraste seu arquivo</p></div>';
+    docStrip.innerHTML = cards.join('') + '<div class="doc-card upload" id="docUploadCard"><i data-lucide="paperclip"></i><p>Clique ou arraste seu arquivo</p></div>';
   } catch (err) { docStrip.innerHTML = '<p class="empty" style="width:100%">' + esc(err.message) + '</p>'; }
 }
 
@@ -445,7 +444,7 @@ async function sendEmergency(type) {
     const folhaAberta = jobProjectId && !jobModal.hidden;
     await api('/api/emergency', { method: 'POST', body: JSON.stringify({ type, project_id: folhaAberta ? jobProjectId : null }) });
     emergencyModal.hidden = true;
-    alert('🚨 ' + type + ' enviada. Todos os gestores foram notificados.');
+    alert( type + ' enviada. Todos os gestores foram notificados.');
   } catch (err) { alert(err.message); }
 }
 document.getElementById('emergMed').addEventListener('click', () => sendEmergency('Emergência médica'));
@@ -498,10 +497,10 @@ document.getElementById('soundBtn').addEventListener('click', () => {
   const btn = document.getElementById('soundBtn');
   if (soundOn) {
     getCtx(); playAlert(1);          // confirma com um bipe
-    btn.textContent = '🔊 Som ligado';
+    btn.innerHTML = '<i data-lucide="volume-2"></i> Som ligado'; refreshIcons();
     btn.classList.add('sound-on');
   } else {
-    btn.textContent = '🔇 Som desligado';
+    btn.innerHTML = '<i data-lucide="volume-x"></i> Som desligado'; refreshIcons();
     btn.classList.remove('sound-on');
   }
 });
@@ -514,7 +513,7 @@ async function autoRefresh() {
       const ids = result.available.map(p => p.id).sort((a, b) => a - b).join(',');
       if (knownAvailable !== null && ids !== knownAvailable) {
         const added = result.available.filter(p => !knownAvailable.split(',').includes(String(p.id)));
-        if (added.length) { playAlert(3); document.title = '📥 NOVA FOLHA — Tornang'; }
+        if (added.length) { playAlert(3); document.title = ' NOVA FOLHA — Tornang'; }
       }
       knownAvailable = ids;
     }
@@ -544,17 +543,17 @@ loadHistory();
         <div class="jb-vtimeline" id="jbTimeline"></div>
         <div class="jb-team" id="jbTeam"></div>
         <div class="jb-left-actions">
-          <button class="jb-btn jb-btn-ghost" id="jbNotesBtn">💬 Anotações</button>
-          <button class="jb-btn jb-btn-primary" id="jbFinishBtn">✅ Concluir e passar</button>
+          <button class="jb-btn jb-btn-ghost" id="jbNotesBtn"><i data-lucide="message-circle"></i> Anotações</button>
+          <button class="jb-btn jb-btn-primary" id="jbFinishBtn"><i data-lucide="check"></i> Concluir e passar</button>
         </div>
       </div>
       <div class="jb-right">
-        <p class="jb-docs-title">📎 Documentos</p>
+        <p class="jb-docs-title"><i data-lucide="paperclip"></i> Documentos</p>
         <div class="jb-docs-scroll">
           <div class="jb-docs-grid" id="jbDocs"></div>
         </div>
         <div class="jb-upload-zone">
-          <div class="jb-upload" onclick="jbUploadTrigger()">⬆️ Clique ou arraste seu arquivo</div>
+          <div class="jb-upload" onclick="jbUploadTrigger()"><i data-lucide="upload"></i> Clique ou arraste seu arquivo</div>
         </div>
       </div>
     </div>
@@ -565,14 +564,14 @@ loadHistory();
 <div class="jb-overlay" id="jbNotesOverlay" hidden>
   <div class="jb-modal jb-notes-modal">
     <div class="jb-head">
-      <h3>💬 Anotações</h3>
+      <h3><i data-lucide="message-circle"></i> Anotações</h3>
       <button class="jb-close" onclick="jbNotesClose()">✕</button>
     </div>
     <div class="jb-notes-list" id="jbNotesList"></div>
     <div class="jb-chips">
-      <button onclick="jbSendNote(true,'Problema mecânico')">⚠️ Problema mecânico</button>
-      <button onclick="jbSendNote(true,'Falta de material')">📦 Falta de material</button>
-      <button onclick="jbSendNote(true,'Aguardando cliente')">⏳ Aguardando cliente</button>
+      <button onclick="jbSendNote(true,'Problema mecânico')"><i data-lucide="alert-triangle"></i> Problema mecânico</button>
+      <button onclick="jbSendNote(true,'Falta de material')"><i data-lucide="package"></i> Falta de material</button>
+      <button onclick="jbSendNote(true,'Aguardando cliente')"><i data-lucide="clock"></i> Aguardando cliente</button>
     </div>
     <textarea class="jb-notes-area" id="jbNoteText" rows="3" placeholder="Escreva uma anotação sobre esta folha..."></textarea>
     <div class="jb-modal-actions">
@@ -656,8 +655,8 @@ function jbRender(d) {
     const sub = r.status === 'done' ? 'Concluída' : r.status === 'active' ? 'Em andamento' : 'Pendente';
     let chip = '';
     if (r.status === 'active') chip = r.assigned_to
-      ? '<span class="jb-ok-chip">👤 ' + jbEsc(r.assigned_name || 'assumida') + '</span>'
-      : '<span class="jb-warn">⏳ Ninguém aceitou ainda</span>';
+      ? '<span class="jb-ok-chip"><i data-lucide="user"></i> ' + jbEsc(r.assigned_name || 'assumida') + '</span>'
+      : '<span class="jb-warn"><i data-lucide="clock"></i> Ninguém aceitou ainda</span>';
     else if (r.status === 'done' && r.assigned_name) chip = '<span class="jb-ok-chip">✓ ' + jbEsc(r.assigned_name) + '</span>';
     return '<div class="jb-vstep ' + cls + '"><div class="jb-vdot">' + dot + '</div><div class="jb-vstep-info"><b>' + jbEsc(r.name || 'Seção') + '</b><small>' + sub + '</small>' + chip + '</div></div>';
   }).join('');
@@ -673,7 +672,7 @@ function jbRender(d) {
   const docsHtml = jbCurrent.docs.length ? jbCurrent.docs.map((doc, i) => {
     const isImg = (doc.mime_type || '').startsWith('image/');
     const isPdf = (doc.mime_type || '').includes('pdf');
-    const inner = isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + JB_TOKEN + '" alt="" loading="lazy">' : '<span>' + (isPdf ? '📕' : '📄') + '</span>';
+    const inner = isImg ? '<img src="/api/documents/' + doc.id + '/file?token=' + JB_TOKEN + '" alt="" loading="lazy">' : '<span>' + (isPdf ? '<i data-lucide="file-text"></i>' : '<i data-lucide="file"></i>') + '</span>';
     return '<div class="jb-doc-card" onclick="jbViewerOpen(' + i + ')"><div class="jb-doc-thumb">' + inner + '</div><p class="jb-doc-name">' + jbEsc(doc.original_name) + '</p></div>';
   }).join('') : '<p class="jb-empty">Nenhum documento nesta folha.</p>';
   const jbGrid = jbEl('jbDocs');
@@ -681,8 +680,8 @@ function jbRender(d) {
   jbGrid.classList.toggle('jb-empty-grid', !jbCurrent.docs.length);
 
   const fb = jbEl('jbFinishBtn');
-  if (jbCurrent.taskId) { fb.hidden = false; fb.textContent = '✅ Concluir tarefa'; }
-  else if (jbCurrent.canFinish) { fb.hidden = false; fb.textContent = '✅ Concluir e passar'; }
+  if (jbCurrent.taskId) { fb.hidden = false; fb.innerHTML = '<i data-lucide="check"></i> Concluir tarefa'; }
+  else if (jbCurrent.canFinish) { fb.hidden = false; fb.innerHTML = '<i data-lucide="check"></i> Concluir e passar'; }
   else fb.hidden = true;
 }
 
@@ -701,17 +700,17 @@ jbEl('jbFinishBtn').addEventListener('click', async () => {
     if (jbCurrent.taskId) {
       const info = await jbApi('/api/tasks/' + jbCurrent.taskId + '/next');
       let destination = null;
-      if (info.completes_project) destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronto para entrega ao cliente') ? 'warehouse' : 'client';
+      if (info.completes_project) destination = confirm('Esta é a última tarefa do projeto. Destino final:\n\nOK =  Enviar ao armazém\nCancelar =  Pronto para entrega ao cliente') ? 'warehouse' : 'client';
       const data = await jbApi('/api/tasks/' + jbCurrent.taskId + '/finish', { method: 'POST', body: JSON.stringify({ destination, next_worker_id: null }) });
-      alert('✅ Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
+      alert(' Tarefa concluída.' + (data.next_task ? ' Próxima: ' + data.next_task : ''));
     } else {
       if (!confirm('Concluir esta folha?')) return;
       let destination = null;
-      if (jbCurrent.isLast) destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK = 📦 Enviar ao armazém\nCancelar = 🚚 Pronta para entrega ao cliente') ? 'warehouse' : 'client';
+      if (jbCurrent.isLast) destination = confirm('Esta é a última etapa da folha. Destino:\n\nOK =  Enviar ao armazém\nCancelar =  Pronta para entrega ao cliente') ? 'warehouse' : 'client';
       const data = await jbApi('/api/projects/' + jbCurrent.id + '/finish', { method: 'POST', body: JSON.stringify({ destination }) });
-      if (data.completed) alert(destination === 'client' ? '🚚 Folha pronta para entrega ao cliente!' : '📦 Folha enviada ao armazém!');
-      else if (data.waiting) alert('⏳ Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
-      else alert('✅ Folha enviada para: ' + data.next);
+      if (data.completed) alert(destination === 'client' ? ' Folha pronta para entrega ao cliente!' : ' Folha enviada ao armazém!');
+      else if (data.waiting) alert(' Concluído na sua seção. Aguardando ' + data.waiting_for + ' concluir para a folha avançar.');
+      else alert(' Folha enviada para: ' + data.next);
     }
     jbClose();
   } catch (err) { alert(err.message); }
@@ -750,7 +749,7 @@ async function jbNotesOpen() {
 }
 function jbRenderNotes(notes) {
   jbEl('jbNotesList').innerHTML = notes.length ? notes.map(n =>
-    '<div class="jb-note ' + (n.is_alert ? 'alert' : 'normal') + '"><b>' + (n.is_alert ? '⚠️' : '💬') + ' ' + jbEsc(n.author_name || '?') + (n.is_alert && n.alert_type ? ' — ' + jbEsc(n.alert_type) : '') + '</b>' +
+    '<div class="jb-note ' + (n.is_alert ? 'alert' : 'normal') + '"><b>' + (n.is_alert ? (noteIcons[n.alert_type] || '<i data-lucide="alert-triangle"></i>') : '<i data-lucide="message-circle"></i>') + ' ' + jbEsc(n.author_name || '?') + (n.is_alert && n.alert_type ? ' — ' + jbEsc(n.alert_type) : '') + '</b>' +
     (n.note ? '<p>' + jbEsc(n.note) + '</p>' : '') +
     '<time>' + jbEsc((n.created_at || '').slice(0, 16)) + '</time></div>'
   ).join('') : '<p class="jb-empty">Nenhuma anotação ainda.</p>';
@@ -761,7 +760,7 @@ async function jbSendNote(isAlert, alertType) {
   try {
     await jbApi('/api/projects/' + jbCurrent.id + '/notes', { method: 'POST', body: JSON.stringify({ note, is_alert: isAlert, alert_type: alertType }) });
     jbEl('jbNoteText').value = '';
-    jbEl('jbNotesMsg').textContent = isAlert ? '⚠️ Alerta enviado ao gestor.' : 'Anotação salva.';
+    jbEl('jbNotesMsg').textContent = isAlert ? '<i data-lucide="alert-triangle"></i> Alerta enviado ao gestor.' : 'Anotação salva.';
     jbRenderNotes((await jbApi('/api/projects/' + jbCurrent.id + '/notes')).notes || []);
   } catch (err) { jbEl('jbNotesMsg').textContent = err.message; }
 }
@@ -779,14 +778,14 @@ function jbUploadFiles(files) {
   if (!jbCurrent || !files || !files.length) return;
   const box = document.querySelector('#jbOverlay .jb-upload');
   const original = box ? box.innerHTML : '';
-  if (box) box.innerHTML = '⏳ Enviando...';
+  if (box) box.innerHTML = ' Enviando...';
   const fd = new FormData();
   for (const f of files) fd.append('files', f);
   fetch('/api/projects/' + jbCurrent.id + '/documents', { method: 'POST', headers: { 'Authorization': 'Bearer ' + JB_TOKEN }, body: fd })
     .then(async res => {
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data.error || 'Erro no upload');
-      if (box) box.innerHTML = '✅ ' + data.count + ' arquivo(s) enviado(s)';
+      if (box) box.innerHTML = '<i data-lucide="check"></i>' + data.count + ' arquivo(s) enviado(s)';
       const d = await jbApi('/api/projects/' + jbCurrent.id + '/detail');
       if (jbCurrent && jbCurrent.id === d.project.id) jbRender(d);
       setTimeout(() => { if (box) box.innerHTML = original; }, 2500);
@@ -869,6 +868,8 @@ jbEl('jbOverlay').addEventListener('click', e => { if (e.target === e.currentTar
   };
   check(); setInterval(check, 20000);
 })();
+
+refreshIcons();
 </script>
 </body>
 </html>

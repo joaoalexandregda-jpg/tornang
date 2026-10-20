@@ -1184,3 +1184,15 @@ body > .tabs ~ .panel {
 .notif-tabs button svg { width: 12px; height: 12px; vertical-align: -2px; margin-right: 3px; }
 .notif-item > b svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; color: #64748B; }
 .notif-item.note-emergency > b svg { color: #DC2626; }
+
+/* ==================== v6.1 — worker: ícones ==================== */
+.worker-page .bell svg { width: 20px; height: 20px; }
+.worker-page h2 svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: var(--t-accent); }
+.emergency-fab svg { width: 26px; height: 26px; color: #fff; }
+.emergency-opt svg { width: 15px; height: 15px; vertical-align: -2px; margin-right: 8px; }
+.quick-alerts .btn svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
+.doc-icon svg, .jb-doc-thumb svg { width: 34px; height: 34px; color: #64748B; }
+.jb-btn svg { width: 14px; height: 14px; vertical-align: -2px; margin-right: 6px; }
+.jb-chips button { display: inline-flex; align-items: center; gap: 5px; }
+.doc-card.upload svg, .jb-upload svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: var(--t-accent); }
+#soundBtn svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
