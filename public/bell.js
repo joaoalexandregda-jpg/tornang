@@ -5,7 +5,7 @@
   const $ = id => document.getElementById(id);
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   function refreshIcons() { if (window.lucide) lucide.createIcons(); }
-  const TYPE_ICONS = { step_done: 'check', alert: 'alert-triangle', emergency: 'siren', section_arrival: 'inbox', join_request: 'user-plus' };
+  const TYPE_ICONS = { section_arrival: 'inbox', task_assigned: 'clipboard-list', late: 'calendar-clock', alert: 'alert-triangle', emergency: 'siren', join_request: 'user-plus', join_accepted: 'user-check', join_recused: 'user-x', step_done: 'check' };
 
   async function apiGet(path) {
     const res = await fetch(path, { headers: { 'Authorization': 'Bearer ' + token } });

@@ -408,7 +408,7 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
       db.prepare('UPDATE projects SET current_section_id = ? WHERE id = ?').run(first ? first.section_id : null, projectId);
       db.prepare('UPDATE projects SET assigned_to = ? WHERE id = ?').run(req.user.id, projectId);
       db.prepare('INSERT INTO project_history (project_id, worker_id, action) VALUES (?,?,?)').run(projectId, req.user.id, 'created');
-      if (first) notifySection(req.user.company_id, first.section_id, '📥 Nova folha na sua seção', String(client_name).trim() + (String(name || '').trim() ? ' — ' + String(name).trim() : '') + ' acabou de entrar na fila.', projectId);
+      if (first) notifySection(req.user.company_id, first.section_id, ' Nova folha na sua seção', String(client_name).trim() + (String(name || '').trim() ? ' — ' + String(name).trim() : '') + ' acabou de entrar na fila.', projectId);
     });
     tx();
     return res.json({ ok: true, id: projectId });
@@ -620,8 +620,8 @@ app.post('/api/projects/:id/finish', auth, (req, res) => {
     if (next) {
       db.prepare("UPDATE projects SET current_section_id = ?, assigned_to = NULL, updated_at = datetime('now') WHERE id = ?").run(next.id, p.id);
       const doneSec = db.prepare('SELECT name FROM sections WHERE id = ?').get(p.current_section_id);
-      notifySection(p.company_id, next.id, '📥 Nova folha na sua seção', (p.name || p.client_name) + ' chegou em ' + next.name + '.', p.id);
-      notifyManagers(p.company_id, 'step_done', '✅ Etapa concluída', req.user.name + ' concluiu ' + (p.name || p.client_name) + (doneSec ? ' em ' + doneSec.name : '') + '.', p.id);
+      notifySection(p.company_id, next.id, ' Nova folha na sua seção', (p.name || p.client_name) + ' chegou em ' + next.name + '.', p.id);
+      notifyManagers(p.company_id, 'step_done', 'Etapa concluída', req.user.name + ' concluiu ' + (p.name || p.client_name) + (doneSec ? ' em ' + doneSec.name : '') + '.', p.id);
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, p.current_section_id, req.user.id, 'finished');
       db.prepare('INSERT INTO project_history (project_id, section_id, worker_id, action) VALUES (?,?,?,?)').run(p.id, next.id, req.user.id, 'passed');
     } else {
@@ -683,7 +683,7 @@ app.post('/api/tasks/:id/finish', auth, (req, res) => {
           if (nw) {
             db.prepare('UPDATE project_tasks SET assigned_to = ? WHERE id = ?').run(nw.id, nextTask.id);
             db.prepare('INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)')
-              .run(t.company_id, nw.id, 'task_assigned', '📋 Tarefa atribuída a você', req.user.name + ' te passou a tarefa "' + nextTask.name + '" (' + t.item_name + ').', t.project_id);
+              .run(t.company_id, nw.id, 'task_assigned', ' Tarefa atribuída a você', req.user.name + ' te passou a tarefa "' + nextTask.name + '" (' + t.item_name + ').', t.project_id);
           }
         }
       }
@@ -1367,7 +1367,7 @@ app.get('/api/notifications', auth, (req, res) => {
     const lateFolhas = db.prepare("SELECT id, name, client_name, due_date FROM projects WHERE company_id = ? AND status = 'in_progress' AND archived = 0 AND due_date IS NOT NULL AND due_date != '' AND due_date < date('now')").all(me.company_id);
     for (const lp of lateFolhas) {
       const already = db.prepare("SELECT 1 FROM notifications WHERE project_id = ? AND type = 'late' AND created_at >= datetime('now', '-20 hours')").get(lp.id);
-      if (!already) notifyManagers(me.company_id, 'late', '⚠️ Folha atrasada', (lp.name || lp.client_name) + ' passou do prazo (' + lp.due_date + ').', lp.id);
+      if (!already) notifyManagers(me.company_id, 'late', 'Folha atrasada', (lp.name || lp.client_name) + ' passou do prazo (' + lp.due_date + ').', lp.id);
     }
   }
   // v5.6 W0.5: sino autolimpante — só não lidas + pedidos de participação pendentes
@@ -1504,10 +1504,10 @@ app.post('/api/join-requests/:id/:action', auth, (req, res) => {
     if (action === 'accept') {
       db.prepare('INSERT OR IGNORE INTO project_collaborators (project_id, user_id) VALUES (?,?)').run(jr.project_id, jr.requester_id);
       db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)`)
-        .run(req.user.company_id, jr.requester_id, 'join_accepted', '✅ Pedido aceito', (req.user.name || '') + ' aceitou sua participação na folha ' + label + '.', jr.project_id);
+        .run(req.user.company_id, jr.requester_id, 'join_accepted', 'Pedido aceito', (req.user.name || '') + ' aceitou sua participação na folha ' + label + '.', jr.project_id);
     } else {
       db.prepare(`INSERT INTO notifications (company_id, user_id, type, title, body, project_id) VALUES (?,?,?,?,?,?)`)
-        .run(req.user.company_id, jr.requester_id, 'join_recused', '❌ Pedido recusado', (req.user.name || '') + ' recusou sua participação na folha ' + label + '.', jr.project_id);
+        .run(req.user.company_id, jr.requester_id, 'join_recused', 'Pedido recusado', (req.user.name || '') + ' recusou sua participação na folha ' + label + '.', jr.project_id);
     }
   });
   tx();
