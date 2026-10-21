@@ -1197,8 +1197,13 @@ body > .tabs ~ .panel {
 .doc-card.upload svg, .jb-upload svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: var(--t-accent); }
 #soundBtn svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
 
-/* ==================== v6.1 — worker: topbar padronizada ==================== */
-body.worker-page > .topbar { background: #fff; color: #1F2937; border-bottom: 1px solid #E5E7EB; }
-body.worker-page > .topbar h1 { color: #1F2937; }
-body.worker-page .sec-label { display: inline-flex; align-items: center; gap: 5px; font-size: 13px; font-weight: 600; color: #64748B; }
-body.worker-page .sec-label svg { width: 14px; height: 14px; }
+/* ==================== v6.1 — worker: topbar mint (família teal do manager) ==================== */
+body.worker-page > .topbar { background: var(--t-accent-soft, #E6F6F4); border-bottom: 1px solid rgba(13,148,136,.25); }
+body.worker-page > .topbar h1 { color: #0B7C6B; }
+body.worker-page .user { display: flex; align-items: center; gap: 10px; }
+body.worker-page .user #userName { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: #0F172A; font-size: 14px; }
+body.worker-page .wa-ava { width: 30px; height: 30px; border-radius: 50%; background: #0D9488; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
+body.worker-page .bell { background: #fff; border: 1px solid rgba(13,148,136,.3); border-radius: 50%; width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+body.worker-page .bell svg { width: 18px; height: 18px; color: #0D9488; }
+body.worker-page .user .btn.ghost.small { background: #fff; border: 1px solid rgba(13,148,136,.3); color: #0F172A; height: 38px; padding: 0 14px; display: inline-flex; align-items: center; }
+body.worker-page .user .btn.ghost.small svg { width: 14px; height: 14px; margin-right: 5px; }
