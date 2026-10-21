@@ -24,8 +24,8 @@
     <button class="btn ghost small" id="logoutBtn"><i data-lucide="log-out"></i> Sair</button>
   </div>
 </div>
-  <h1 class="page-title">Fila de hoje — <span id="sectionName">…</span></h1>
 <div class="panel">
+<h1 class="page-title">Fila de hoje — <span id="sectionName">…</span></h1>
   <h2><i data-lucide="list"></i> Disponíveis na minha seção</h2>
   <div id="availableList" class="grid"></div>
   <h2 style="margin-top:24px"><i data-lucide="layout-grid"></i> Na minha seção</h2>
@@ -104,6 +104,7 @@ const sections = JSON.parse(localStorage.getItem('sections') || '[]');
 if (user.role !== 'worker') location.href = 'manager.html';
 document.getElementById('companyName').textContent = company.name;
 document.getElementById('userName').innerHTML = '<span class="wa-ava">' + esc((user.name || '?').trim()[0].toUpperCase()) + '</span>' + esc((user.name || '').split(' ')[0]);
+refreshIcons();
 document.getElementById('sectionName').textContent = ((sections.find(s => s.id === user.section_id) || {}).name || 'Sem seção');
 const hh = new Date().getHours();
 document.getElementById('greeting').textContent = (hh < 12 ? 'Bom dia' : hh < 18 ? 'Boa tarde' : 'Boa noite') + ', ' + (user.name || '').split(' ')[0];

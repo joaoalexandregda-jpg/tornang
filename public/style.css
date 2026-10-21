@@ -1216,3 +1216,23 @@ body.worker-page main section, body.worker-page .panel { background: #fff; borde
 body.worker-page main section h2, body.worker-page .panel h2 { display: flex; align-items: center; gap: 10px; margin: 0; padding: 18px 20px 14px; font-size: 15px; font-weight: 700; color: #111827; border-bottom: 1px solid #E5E7EB; }
 body.worker-page main section h2 svg, body.worker-page .panel h2 svg { width: 28px; height: 28px; padding: 7px; box-sizing: content-box; background: #0D9488; border-radius: 8px; color: #0D1F1C; }
 body.worker-page .empty { color: #64748B; font-size: 14px; padding: 20px; }
+body.worker-page > .topbar { border-radius: 0 !important; margin: 0 !important; width: 100%; }
+
+/* v6.2-design: correções — cards por seção, topbar reta, badge */
+body.worker-page > .topbar { border-radius: 0 !important; margin: 0 !important; }
+body.worker-page .bell .badge[hidden] { display: none !important; }
+body.worker-page .panel { background: transparent; border: none; border-radius: 0; padding: 8px 48px 48px; max-width: 1280px; margin: 0 auto; overflow: visible; }
+body.worker-page .panel h2 {
+  background: #fff; border: 1px solid #E5E7EB; border-bottom: none;
+  border-radius: 14px 14px 0 0; display: flex; align-items: center; gap: 10px;
+  padding: 18px 20px 14px; margin: 26px 0 0 !important;
+  font-size: 15px; font-weight: 700; color: #111827;
+}
+body.worker-page .panel h2:first-of-type { margin-top: 0 !important; }
+body.worker-page .panel h2 + div {
+  background: #fff; border: 1px solid #E5E7EB; border-top: none;
+  border-radius: 0 0 14px 14px;
+}
+body.worker-page .panel h2 svg { width: 28px; height: 28px; padding: 7px; box-sizing: content-box; background: #0D9488; border-radius: 8px; color: #0D1F1C; }
+body.worker-page .page-title { font-size: 30px; font-weight: 700; color: #111827; letter-spacing: -.5px; margin: 0 0 20px; }
+body.worker-page .empty { color: #64748B; font-size: 14px; padding: 20px; }
