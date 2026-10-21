@@ -1197,13 +1197,22 @@ body > .tabs ~ .panel {
 .doc-card.upload svg, .jb-upload svg { width: 16px; height: 16px; vertical-align: -3px; margin-right: 6px; color: var(--t-accent); }
 #soundBtn svg { width: 13px; height: 13px; vertical-align: -2px; margin-right: 5px; }
 
-/* ==================== v6.1 — worker: topbar mint (família teal do manager) ==================== */
-body.worker-page > .topbar { background: var(--t-accent-soft, #E6F6F4); border-bottom: 1px solid rgba(13,148,136,.25); }
-body.worker-page > .topbar h1 { color: #0B7C6B; }
-body.worker-page .user { display: flex; align-items: center; gap: 10px; }
-body.worker-page .user #userName { display: inline-flex; align-items: center; gap: 8px; font-weight: 800; color: #0F172A; font-size: 14px; }
-body.worker-page .wa-ava { width: 30px; height: 30px; border-radius: 50%; background: #0D9488; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 13px; font-weight: 800; }
-body.worker-page .bell { background: #fff; border: 1px solid rgba(13,148,136,.3); border-radius: 50%; width: 38px; height: 38px; display: inline-flex; align-items: center; justify-content: center; position: relative; }
-body.worker-page .bell svg { width: 18px; height: 18px; color: #0D9488; }
-body.worker-page .user .btn.ghost.small { background: #fff; border: 1px solid rgba(13,148,136,.3); color: #0F172A; height: 38px; padding: 0 14px; display: inline-flex; align-items: center; }
-body.worker-page .user .btn.ghost.small svg { width: 14px; height: 14px; margin-right: 5px; }
+/* ==================== v6.2-design: worker — direção Figma (dark teal) ==================== */
+body.worker-page { background: #F2F3F4; }
+body.worker-page > .topbar { background: #1B2E2A; border-bottom: none; padding: 0 32px; min-height: 72px; display: flex; align-items: center; justify-content: space-between; }
+body.worker-page .tb-left { display: flex; align-items: center; gap: 14px; }
+body.worker-page .logo-tile { width: 44px; height: 44px; border: 1px solid rgba(255,255,255,.25); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; }
+body.worker-page .logo-tile svg { width: 22px; height: 22px; color: #fff; }
+body.worker-page #greeting { font-size: 14px; font-weight: 400; color: rgba(255,255,255,.55); }
+body.worker-page .user { display: flex; align-items: center; gap: 12px; }
+body.worker-page .bell { width: 44px; height: 44px; background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); border-radius: 12px; display: inline-flex; align-items: center; justify-content: center; position: relative; }
+body.worker-page .bell svg { width: 22px; height: 22px; color: #fff; }
+body.worker-page .bell .badge { position: absolute; top: -6px; right: -6px; background: #DC2626; color: #fff; font-size: 11px; font-weight: 800; min-width: 18px; height: 18px; border-radius: 999px; display: flex; align-items: center; justify-content: center; padding: 0 4px; }
+body.worker-page .user .btn.ghost.small { background: rgba(255,255,255,.08); border: 1px solid rgba(255,255,255,.12); color: rgba(255,255,255,.75); height: 44px; padding: 0 16px; display: inline-flex; align-items: center; gap: 8px; border-radius: 22px; font-size: 13px; font-weight: 500; }
+body.worker-page .user .btn.ghost.small svg { width: 18px; height: 18px; color: #fff; }
+body.worker-page .page-title { font-size: 30px; font-weight: 700; color: #111827; letter-spacing: -.5px; margin: 0 0 20px; }
+body.worker-page main, body.worker-page .wrap, body.worker-page .content { padding: 8px 48px 48px; }
+body.worker-page main section, body.worker-page .panel { background: #fff; border: 1px solid #E5E7EB; border-radius: 14px; margin: 0 0 20px; overflow: hidden; }
+body.worker-page main section h2, body.worker-page .panel h2 { display: flex; align-items: center; gap: 10px; margin: 0; padding: 18px 20px 14px; font-size: 15px; font-weight: 700; color: #111827; border-bottom: 1px solid #E5E7EB; }
+body.worker-page main section h2 svg, body.worker-page .panel h2 svg { width: 28px; height: 28px; padding: 7px; box-sizing: content-box; background: #0D9488; border-radius: 8px; color: #0D1F1C; }
+body.worker-page .empty { color: #64748B; font-size: 14px; padding: 20px; }

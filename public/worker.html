@@ -9,7 +9,10 @@
 </head>
 <body class="worker-page">
 <div class="topbar">
-  <h1>Fila de hoje — <span id="sectionName">…</span></h1>
+      <div class="tb-left">
+      <span class="logo-tile"><i data-lucide="factory"></i></span>
+      <span id="greeting">Bem-vindo</span>
+    </div>
       <div class="user">
     <span id="userName"></span>
     <div class="bell-wrap">
@@ -18,15 +21,16 @@
     </div>
     <button class="btn ghost small" title="Modo tablet" aria-label="Modo tablet" onclick="location.href='/tablet.html'"><i data-lucide="tablet"></i></button>
     <button class="btn ghost small" id="soundBtn"><i data-lucide="volume-x"></i> Som desligado</button>
-    <button class="btn ghost small" id="logoutBtn">Sair</button>
+    <button class="btn ghost small" id="logoutBtn"><i data-lucide="log-out"></i> Sair</button>
   </div>
 </div>
+  <h1 class="page-title">Fila de hoje — <span id="sectionName">…</span></h1>
 <div class="panel">
-  <h2><i data-lucide="inbox"></i> Disponíveis na minha seção</h2>
+  <h2><i data-lucide="list"></i> Disponíveis na minha seção</h2>
   <div id="availableList" class="grid"></div>
-  <h2 style="margin-top:24px"><i data-lucide="users"></i> Na minha seção</h2>
+  <h2 style="margin-top:24px"><i data-lucide="layout-grid"></i> Na minha seção</h2>
   <div id="othersList" class="grid"></div>
-  <h2 style="margin-top:24px"><i data-lucide="hammer"></i> Em andamento (minhas)</h2>
+  <h2 style="margin-top:24px"><i data-lucide="play"></i> Em andamento (minhas)</h2>
   <div id="mineList" class="grid"></div>
   <h2 style="margin-top:24px"><i data-lucide="history"></i> Meu histórico</h2>
   <div id="historyList"></div>
@@ -101,6 +105,8 @@ if (user.role !== 'worker') location.href = 'manager.html';
 document.getElementById('companyName').textContent = company.name;
 document.getElementById('userName').innerHTML = '<span class="wa-ava">' + esc((user.name || '?').trim()[0].toUpperCase()) + '</span>' + esc((user.name || '').split(' ')[0]);
 document.getElementById('sectionName').textContent = ((sections.find(s => s.id === user.section_id) || {}).name || 'Sem seção');
+const hh = new Date().getHours();
+document.getElementById('greeting').textContent = (hh < 12 ? 'Bom dia' : hh < 18 ? 'Boa tarde' : 'Boa noite') + ', ' + (user.name || '').split(' ')[0];
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function refreshIcons() { if (window.lucide) lucide.createIcons(); }
