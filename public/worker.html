@@ -102,12 +102,15 @@ const user = JSON.parse(localStorage.getItem('user') || '{}');
 const company = JSON.parse(localStorage.getItem('company') || '{}');
 const sections = JSON.parse(localStorage.getItem('sections') || '[]');
 if (user.role !== 'worker') location.href = 'manager.html';
-document.getElementById('companyName').textContent = company.name;
-document.getElementById('userName').innerHTML = '<span class="wa-ava">' + esc((user.name || '?').trim()[0].toUpperCase()) + '</span>' + esc((user.name || '').split(' ')[0]);
+const hourNow = new Date().getHours();
+const firstName = ((user.name || '').trim().split(' ')[0] || '?');
+const pretty = firstName.charAt(0).toUpperCase() + firstName.slice(1);
+document.getElementById('greeting').textContent = (hourNow < 12 ? 'Bom dia' : hourNow < 18 ? 'Boa tarde' : 'Boa noite') + ', ' + pretty;
+document.getElementById('userName').innerHTML = '<span class="wa-ava" title="' + esc(user.name || '') + '">' + esc(pretty[0]) + '</span>';
 refreshIcons();
 document.getElementById('sectionName').textContent = ((sections.find(s => s.id === user.section_id) || {}).name || 'Sem seção');
-const hh = new Date().getHours();
-document.getElementById('greeting').textContent = (hh < 12 ? 'Bom dia' : hh < 18 ? 'Boa tarde' : 'Boa noite') + ', ' + (user.name || '').split(' ')[0];
+
+
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
 function refreshIcons() { if (window.lucide) lucide.createIcons(); }
