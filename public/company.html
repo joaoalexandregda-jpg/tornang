@@ -131,7 +131,8 @@ document.getElementById('companyForm').addEventListener('submit', async (e) => {
       website: document.getElementById('fWebsite').value.trim()
     })});
     localStorage.setItem('company', JSON.stringify(company));
-    document.getElementById('companyName').textContent = company.name;
+    const coNameEl = document.getElementById('companyName');
+if (coNameEl) coNameEl.textContent = company.name;
     msg.textContent = 'Informações salvas.';
   } catch (err) { msg.textContent = err.message; }
 });
