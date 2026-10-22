@@ -368,7 +368,7 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
   res.json({ projects });
 });
 app.post('/api/projects', auth, managerOnly, (req, res) => {
-  const { sheet_number, client_name, name, description, due_date, location_id, section_ids, items } = req.body || {};
+  const { sheet_number, client_name, name, description, due_date, location_id, section_ids, items, route } = req.body || {};
   if (!client_name || !String(client_name).trim()) return res.status(400).json({ error: 'Informe o cliente da folha.' });
     const sheetNum = (sheet_number === undefined || sheet_number === null || sheet_number === '') ? null : Number(sheet_number);
   if (sheetNum !== null && (!Number.isInteger(sheetNum) || sheetNum < 1)) {
