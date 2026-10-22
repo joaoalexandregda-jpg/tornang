@@ -380,7 +380,7 @@ let jobProjectId = null;
 function openJob(id) {
   const p = jobCache[id];
   if (!p) return;
-  jbOpen(id, !!p.can_finish, p.task_id || null);
+  jbOpen(id, !!p.can_finish, p.task_id || null, p.task_id ? p : null);
 }
 
 async function renderDocsStrip() {
@@ -549,6 +549,7 @@ loadHistory();
           <span class="jb-badge">Em produção</span>
         </div>
         <div class="jb-meta-list" id="jbMeta"></div>
+        <div id="jbTask"></div>
         <div class="jb-vtimeline" id="jbTimeline"></div>
         <div class="jb-team" id="jbTeam"></div>
         <div class="jb-left-actions">
@@ -627,10 +628,11 @@ function jbAva(name) {
 const jbEl = id => document.getElementById(id);
 
 // — Abrir a folha: jbOpen(id, canFinish, taskId) —
-async function jbOpen(id, canFinish, taskId) {
-  jbCurrent = { id, docs: [], taskId: taskId || null, canFinish: canFinish !== false, isLast: false };
+async function jbOpen(id, canFinish, taskId, taskInfo) {
+  jbCurrent = { id, docs: [], taskId: taskId || null, canFinish: canFinish !== false, isLast: false, task: taskInfo || null };
   jbEl('jbTitle').textContent = 'Carregando…';
   jbEl('jbMeta').innerHTML = '';
+  jbEl('jbTask').innerHTML = '';
   jbEl('jbTimeline').innerHTML = '';
   jbEl('jbTeam').innerHTML = '';
   jbEl('jbDocs').innerHTML = '<p class="jb-empty">Carregando…</p>';
@@ -642,16 +644,33 @@ async function jbOpen(id, canFinish, taskId) {
   } catch (err) { alert(err.message); jbClose(); }
 }
 
+function jbTaskHtml(t) {
+  if (!t) return '';
+  const rows = [
+    ['Item', t.item_name],
+    ['Quantidade', t.quantity],
+    ['Tarefa', t.task_name],
+    ['Material', t.material],
+    ['Especificação', t.specification]
+  ].filter(([, v]) => v !== null && v !== undefined && String(v).trim() !== '');
+  return '<div class="jb-task-card"><span class="jb-task-label">Sua tarefa</span>' +
+    rows.map(([k, v]) => '<div class="jb-task-row"><span class="lbl">' + k + '</span><b>' + jbEsc(v) + '</b></div>').join('') +
+    '</div>';
+}
+
 function jbRender(d) {
   const p = d.project;
   jbEl('jbTitle').textContent = p.client_name + (p.name ? ' — ' + p.name : '');
   const who = p.worker_name || '—';
-  jbEl('jbMeta').innerHTML =
-    '<div class="jb-meta-line"><span class="lbl">Cliente</span>' + jbEsc(p.client_name) + '</div>' +
+const sheetLine = p.sheet_number
+  ? '<div class="jb-meta-line"><span class="lbl">N. Folha</span>FO ' + String(p.sheet_number).padStart(4, '0') + '</div>'
+  : '';
+ jbEl('jbMeta').innerHTML = sheetLine +
+  '<div class="jb-meta-line"><span class="lbl">Cliente</span>' + jbEsc(p.client_name) + '</div>' +
     '<div class="jb-meta-line"><span class="lbl">Prazo</span>' + jbEsc(p.due_date || 'sem prazo') + '</div>' +
     '<div class="jb-meta-line"><span class="lbl">Seção</span>' + jbEsc(p.section_name || '—') + '</div>' +
     '<div class="jb-meta-line"><span class="lbl">Responsável</span>' + jbAva(who) + '<span>' + jbEsc(who) + '</span><span class="jb-online"></span></div>';
-
+  jbEl('jbTask').innerHTML = jbTaskHtml(jbCurrent.task);
   const rows = (d.route || []).slice().sort((a, b) => a.step - b.step || String(a.name || '').localeCompare(String(b.name || '')));
   const maxStep = rows.length ? Math.max(...rows.map(r => Number(r.step))) : null;
   const myRows = rows.filter(r => r.name === p.section_name);

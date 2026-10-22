@@ -6,6 +6,14 @@ const bcrypt = require('bcryptjs');
 const fs = require('fs');
 const multer = require('multer');
 const db = require('./database');
+// ---------- Migração automática (roda ao iniciar) ----------
+function ensureColumn(table, column, type) {
+  const cols = db.prepare(`PRAGMA table_info(${table})`).all().map(c => c.name);
+  if (!cols.includes(column)) db.exec(`ALTER TABLE ${table} ADD COLUMN ${column} ${type}`);
+}
+ensureColumn('projects', 'sheet_number', 'INTEGER');
+ensureColumn('project_tasks', 'material', 'TEXT');
+ensureColumn('project_tasks', 'specification', 'TEXT');
 const DATA_DIR = process.env.DATA_DIR || __dirname;
 fs.mkdirSync(path.join(DATA_DIR, 'uploads'), { recursive: true });
 async function sendEmail(to, subject, text) {
@@ -360,8 +368,12 @@ app.get('/api/projects', auth, managerOnly, (req, res) => {
   res.json({ projects });
 });
 app.post('/api/projects', auth, managerOnly, (req, res) => {
-  const { client_name, name, description, due_date, location_id, section_ids, items } = req.body || {};
+  const { sheet_number, client_name, name, description, due_date, location_id, section_ids, items } = req.body || {};
   if (!client_name || !String(client_name).trim()) return res.status(400).json({ error: 'Informe o cliente da folha.' });
+    const sheetNum = (sheet_number === undefined || sheet_number === null || sheet_number === '') ? null : Number(sheet_number);
+  if (sheetNum !== null && (!Number.isInteger(sheetNum) || sheetNum < 1)) {
+    return res.status(400).json({ error: 'O N. Folha precisa ser um número inteiro maior que zero.' });
+  }
   const locId = Number(location_id) || null;
   const allowedP = allowedLocationIds(req.user);
   if (allowedP && locId && !allowedP.includes(locId)) return res.status(403).json({ error: 'Você não tem acesso a este local.' });
@@ -378,7 +390,12 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
       if (!iname) return res.status(400).json({ error: 'Todo item precisa de um nome.' });
       const ordered = it.ordered ? 1 : 0;
       const tasks = (Array.isArray(it.tasks) ? it.tasks : [])
-        .map(t => ({ name: String(t.name || '').trim(), section_id: Number(t.section_id) }))
+       .map(t => ({
+          name: String(t.name || '').trim(),
+          section_id: Number(t.section_id),
+          material: String(t.material || '').trim() || null,
+          specification: String(t.specification || '').trim() || null
+        }))
         .filter(t => t.name && validIds.includes(t.section_id));
       if (!tasks.length) return res.status(400).json({ error: `O item "${iname}" precisa de pelo menos uma tarefa.` });
       cleanItems.push({ name: iname, quantity: Math.max(1, Number(it.quantity) || 1), ordered, tasks });
@@ -389,18 +406,18 @@ app.post('/api/projects', auth, managerOnly, (req, res) => {
     const status = 'in_progress';
     let projectId = null;
     const tx = db.transaction(() => {
-      const pi = db.prepare('INSERT INTO projects (company_id, location_id, client_name, name, description, due_date, status) VALUES (?,?,?,?,?,?,?)')
-        .run(req.user.company_id, locId, String(client_name).trim(), String(name || '').trim(), String(description || '').trim(), String(due_date || '').trim() || null, status);
+      const pi = db.prepare('INSERT INTO projects (company_id, location_id, client_name, name, description, due_date, status, sheet_number) VALUES (?,?,?,?,?,?,?,?)')
+        .run(req.user.company_id, locId, String(client_name).trim(), String(name || '').trim(), String(description || '').trim(), String(due_date || '').trim() || null, status, sheetNum);
       projectId = pi.lastInsertRowid;
       const insPool = db.prepare('INSERT OR IGNORE INTO project_sections (project_id, section_id) VALUES (?,?)');
       for (const sid of pool) insPool.run(projectId, sid);
       const insItem = db.prepare('INSERT INTO project_items (project_id, name, quantity, ordered, status, position) VALUES (?,?,?,?,?,?)');
-      const insTask = db.prepare('INSERT INTO project_tasks (item_id, section_id, name, task_order, status) VALUES (?,?,?,?,?)');
+      const insTask = db.prepare('INSERT INTO project_tasks (item_id, section_id, name, task_order, status, material, specification) VALUES (?,?,?,?,?,?,?)');
       cleanItems.forEach((it, idx) => {
         const ii = insItem.run(projectId, it.name, it.quantity, it.ordered, 'in_progress', idx);
         it.tasks.forEach((t, ti) => {
           const st = it.ordered ? (ti === 0 ? 'active' : 'pending') : 'active';
-          insTask.run(ii.lastInsertRowid, t.section_id, t.name, it.ordered ? ti + 1 : null, st);
+          insTask.run(ii.lastInsertRowid, t.section_id, t.name, it.ordered ? ti + 1 : null, st, t.material, t.specification);
         });
       });
       const first = db.prepare(`SELECT t.section_id FROM project_tasks t JOIN project_items i ON i.id = t.item_id
@@ -535,8 +552,9 @@ app.get('/api/worker/queue', auth, (req, res) => {
     // ---------- v5.0: tarefas da seção ----------
   const taskRows = db.prepare(`
     SELECT t.id AS task_id, t.name AS task_name, t.status AS task_status, t.task_order, t.assigned_to AS task_assigned,
+      t.material, t.specification,
       i.id AS item_id, i.name AS item_name, i.quantity, i.ordered, i.status AS item_status,
-      p.id, p.client_name, p.name AS project_name, p.description, p.priority, p.due_date,
+      p.id, p.sheet_number, p.client_name, p.name AS project_name, p.description, p.priority, p.due_date,
       s.name AS section_name
     FROM project_tasks t
     JOIN project_items i ON i.id = t.item_id
@@ -1023,7 +1041,12 @@ app.post('/api/projects/:id/items', auth, managerOnly, (req, res) => {
     quantity: Math.max(1, Number(it.quantity) || 1),
     ordered: !!it.ordered,
     tasks: (Array.isArray(it.tasks) ? it.tasks : [])
-      .map(t => ({ name: String(t.name || '').trim(), section_id: Number(t.section_id) || null }))
+      .map(t => ({
+        name: String(t.name || '').trim(),
+        section_id: Number(t.section_id) || null,
+        material: String(t.material || '').trim() || null,
+        specification: String(t.specification || '').trim() || null
+      }))
       .filter(t => t.name && t.section_id)
   })).filter(it => it.name && it.tasks.length);
   if (!cleanItems.length) return res.status(400).json({ error: 'Adicione pelo menos um item com tarefas.' });
@@ -1035,11 +1058,11 @@ app.post('/api/projects/:id/items', auth, managerOnly, (req, res) => {
   const tx = db.transaction(() => {
     const start = db.prepare('SELECT COALESCE(MAX(position),0) m FROM project_items WHERE project_id = ?').get(p.id).m;
     const insItem = db.prepare('INSERT INTO project_items (project_id, name, quantity, ordered, status, position) VALUES (?,?,?,?,?,?)');
-    const insTask = db.prepare('INSERT INTO project_tasks (item_id, section_id, name, task_order, status) VALUES (?,?,?,?,?)');
+    const insTask = db.prepare('INSERT INTO project_tasks (item_id, section_id, name, task_order, status, material, specification) VALUES (?,?,?,?,?,?,?)');
     cleanItems.forEach((it, idx) => {
       const info = insItem.run(p.id, it.name, it.quantity, it.ordered ? 1 : 0, 'in_progress', start + idx + 1);
       const itemId = info.lastInsertRowid;
-      it.tasks.forEach((t, ti) => insTask.run(itemId, t.section_id, t.name, ti + 1, it.ordered ? (ti === 0 ? 'active' : 'pending') : 'active'));
+      it.tasks.forEach((t, ti) => insTask.run(itemId, t.section_id, t.name, ti + 1, it.ordered ? (ti === 0 ? 'active' : 'pending') : 'active', t.material, t.specification));
     });
     // Folha criada sem itens: aponta para a primeira tarefa ativa
     if (!p.current_section_id) {

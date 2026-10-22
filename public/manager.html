@@ -251,8 +251,8 @@ let npItemStart = 0;
 let npSectionOptions = [];
 let npSelectedSections = [];
 
-function npAddItem() { npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null }] }); renderItemsBuilder(); }
-function npAddTask(i) { npItems[i].tasks.push({ name: '', section_id: npSectionOptions[0] ? npSectionOptions[0].id : null }); renderItemsBuilder(); }
+function npAddItem() { npItems.push({ name: '', quantity: 1, ordered: true, tasks: [{ name: '', section_id: null, material: '', specification: '' }] }); renderItemsBuilder(); }
+function npAddTask(i) { npItems[i].tasks.push({ name: '', section_id: npSectionOptions[0] ? npSectionOptions[0].id : null, material: '', specification: '' }); renderItemsBuilder(); }
 function npRemoveItem(i) { npItems.splice(i, 1); renderItemsBuilder(); }
 function npRemoveTask(i, ti) { npItems[i].tasks.splice(ti, 1); renderItemsBuilder(); }
 function npMoveTask(i, ti, dir) {
@@ -264,28 +264,36 @@ function renderItemsBuilder() {
   const el = document.getElementById('npItemsList');
   if (!npItems.length) { el.innerHTML = '<p class="empty">Nenhum item ainda.</p>'; return; }
   el.innerHTML = npItems.map((it, i) => `
-    <div class="item" style="margin-bottom:10px">
-      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0;margin-bottom:4px">Item ${npItemStart + i + 1}</div>
-      <div class="form-row">
-        <div class="field"><input placeholder="Item (ex.: 30 placas de saída)" value="${esc(it.name)}" oninput="npItems[${i}].name=this.value"></div>
-        <div class="field" style="max-width:80px"><input type="number" min="1" value="${it.quantity}" title="Quantidade" oninput="npItems[${i}].quantity=Number(this.value)||1"></div>
-        <label style="display:flex;align-items:center;gap:6px;white-space:nowrap"><input type="checkbox" style="width:auto" ${it.ordered ? 'checked' : ''} onchange="npItems[${i}].ordered=this.checked;renderItemsBuilder()"> Ordenado</label>
+    <div class="item" style="margin-bottom:12px">
+      <div style="font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.1em;color:#A1A5B0;margin-bottom:10px">Item ${npItemStart + i + 1}</div>
+      <div class="form-row" style="align-items:flex-end">
+        <div class="field"><span class="np-label">Nome do item</span><input placeholder="ex.: placas de saída" value="${esc(it.name)}" oninput="npItems[${i}].name=this.value"></div>
+        <div class="field" style="max-width:110px"><span class="np-label">Quantidade</span><input type="number" min="1" value="${it.quantity}" oninput="npItems[${i}].quantity=Number(this.value)||1"></div>
+        <label style="display:flex;align-items:center;gap:6px;white-space:nowrap;padding-bottom:10px"><input type="checkbox" style="width:auto" ${it.ordered ? 'checked' : ''} onchange="npItems[${i}].ordered=this.checked;renderItemsBuilder()"> Ordenado</label>
         <button class="btn ghost small" onclick="npRemoveItem(${i})"><i data-lucide="trash-2"></i></button>
       </div>
       ${it.tasks.map((t, ti) => `
-      <div class="form-row" style="margin-left:18px">
-        <div class="field"><input placeholder="Tarefa ${it.ordered ? (ti + 1) + ' — ' : ''}(ex.: desenho, corte, pintura)" value="${esc(t.name)}" oninput="npItems[${i}].tasks[${ti}].name=this.value"></div>
-        <div class="field"><select onchange="npItems[${i}].tasks[${ti}].section_id=Number(this.value)">
-          <option value="">Seção...</option>
-          ${npSectionOptions.map(s => `<option value="${s.id}" ${t.section_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
-        </select></div>
-        ${it.ordered ? `<button class="btn ghost small" onclick="npMoveTask(${i},${ti},-1)" ${ti === 0 ? 'disabled' : ''}>↑</button>
-        <button class="btn ghost small" onclick="npMoveTask(${i},${ti},1)" ${ti === it.tasks.length - 1 ? 'disabled' : ''}>↓</button>` : ''}
-        <button class="btn ghost small" onclick="npRemoveTask(${i},${ti})">✕</button>
+      <div style="margin:10px 0 0 18px">
+        <div class="form-row" style="align-items:flex-end">
+          <div class="field"><span class="np-label">Tarefa</span><input placeholder="ex.: desenho, corte, pintura" value="${esc(t.name)}" oninput="npItems[${i}].tasks[${ti}].name=this.value"></div>
+          <div class="field"><span class="np-label">Seção</span><select onchange="npItems[${i}].tasks[${ti}].section_id=Number(this.value)">
+            <option value="">Seção...</option>
+            ${npSectionOptions.map(s => `<option value="${s.id}" ${t.section_id === s.id ? 'selected' : ''}>${esc(s.name)}</option>`).join('')}
+          </select></div>
+          ${it.ordered ? `<button class="btn ghost small" onclick="npMoveTask(${i},${ti},-1)" ${ti === 0 ? 'disabled' : ''}>↑</button>
+          <button class="btn ghost small" onclick="npMoveTask(${i},${ti},1)" ${ti === it.tasks.length - 1 ? 'disabled' : ''}>↓</button>` : ''}
+          <button class="btn ghost small" onclick="npRemoveTask(${i},${ti})">✕</button>
+        </div>
+        <div style="background:#F6F7F9;border-radius:10px;padding:10px 12px;margin-top:6px">
+          <div class="form-row">
+            <div class="field"><span class="np-label">Material (opcional)</span><input placeholder="ex.: PVC 2 mm" value="${esc(t.material || '')}" oninput="npItems[${i}].tasks[${ti}].material=this.value"></div>
+            <div class="field"><span class="np-label">Especificação (opcional)</span><input placeholder="ex.: 20 × 30 mm, impressão colorida" value="${esc(t.specification || '')}" oninput="npItems[${i}].tasks[${ti}].specification=this.value"></div>
+          </div>
+        </div>
       </div>`).join('')}
-      <button class="btn ghost small" style="margin:4px 0 0 18px" onclick="npAddTask(${i})">+ Tarefa</button>
+      <button class="np-add" style="margin:10px 0 0 18px" onclick="npAddTask(${i})"><i data-lucide="plus"></i> Tarefa</button>
     </div>`).join('');
-    refreshIcons();
+  refreshIcons();
 }
 
 
@@ -384,18 +392,20 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
   npItems = [];
   openModal('Nova folha de obra', `
     <div class="modal-scroll">
-      <div class="grid2">
+      <div class="grid2" style="grid-template-columns:1fr 2fr">
+        <label>N. Folha *<input type="number" id="npSheet" min="1" step="1" placeholder="ex.: 34"></label>
         <label>Cliente / Obra *<input type="text" id="npClient" required></label>
-        <label>Nome do projeto *<input type="text" id="npName"></label>
       </div>
+      <p class="hint" style="margin:-4px 0 10px">Número livre, usado para identificar a folha.</p>
       <div class="grid2">
+        <label>Nome do projeto *<input type="text" id="npName"></label>
         <label>Prazo *<input type="date" id="npDue"></label>
-        <label>Descrição (opcional)<input type="text" id="npDesc"></label>
       </div>
+      <label>Descrição (opcional)<input type="text" id="npDesc"></label>
       <h3 style="font-size:14px;margin:14px 0 6px">Itens e tarefas</h3>
-      <p class="hint">Cada item é uma parte do projeto (ex.: 30 placas de saída). Adicione as tarefas na ordem em que acontecem.</p>
+      <p class="hint">Cada item é uma parte do projeto. Quantidade indica quantas unidades serão produzidas. Adicione as tarefas na ordem em que acontecem.</p>
       <div id="npItemsList"></div>
-      <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>
+      <button class="np-add" onclick="npAddItem()"><i data-lucide="plus"></i> Adicionar item</button>
       <h3 style="font-size:14px;margin:14px 0 6px">Documentos (opcional)</h3>
       <div id="npDropzone" class="dropzone"><i data-lucide="upload"></i><p>Clique ou arraste seus arquivos aqui</p></div>
       <input type="file" id="npFiles" multiple hidden>
@@ -404,26 +414,39 @@ document.getElementById('newProjectBtn').addEventListener('click', async () => {
   renderItemsBuilder();
   setupDropzone();
 });
-async function createProject() {
-  const client_name = document.getElementById('npClient').value.trim();
-  const name = document.getElementById('npName').value.trim();
-  const due_date = document.getElementById('npDue').value;
-  if (!client_name) return alert('Informe o cliente.');
-  if (!name) return alert('Informe o nome do projeto.');
-  if (!due_date) return alert('Informe o prazo.');
-  const items = npItems.map(it => ({
+
+function npBuildItems() {
+  return npItems.map(it => ({
     name: it.name.trim(),
     quantity: Math.max(1, Number(it.quantity) || 1),
     ordered: !!it.ordered,
-    tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
+    tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({
+      name: t.name.trim(),
+      section_id: t.section_id,
+      material: (t.material || '').trim() || null,
+      specification: (t.specification || '').trim() || null
+    }))
   })).filter(it => it.name);
+}
+
+async function createProject() {
+  const sheetRaw = document.getElementById('npSheet').value.trim();
+  const sheet_number = Number(sheetRaw);
+  const client_name = document.getElementById('npClient').value.trim();
+  const name = document.getElementById('npName').value.trim();
+  const due_date = document.getElementById('npDue').value;
+  if (!sheetRaw || !Number.isInteger(sheet_number) || sheet_number < 1) return alert('Informe o N. Folha (número inteiro maior que zero).');
+  if (!client_name) return alert('Informe o cliente.');
+  if (!name) return alert('Informe o nome do projeto.');
+  if (!due_date) return alert('Informe o prazo.');
+  const items = npBuildItems();
   if (!items.length) return alert('Adicione pelo menos um item com tarefas.');
   for (const it of items) {
     if (!it.tasks.length) return alert('O item "' + it.name + '" precisa de pelo menos uma tarefa com seção.');
   }
   try {
     const { id } = await api('/api/projects', { method: 'POST', body: JSON.stringify({
-      client_name, name, due_date,
+      sheet_number, client_name, name, due_date,
       description: document.getElementById('npDesc').value.trim(),
       location_id: currentLocId,
       items
@@ -646,20 +669,15 @@ async function openAddItems(id) {
     ${existingHtml}
     <div style="border-top:1px solid #ECEEF2;margin:14px 0 10px"></div>
     <h3 style="font-size:12px;font-weight:800;margin:0 0 2px">Adicionar novos itens</h3>
-    <p class="hint">Cada item é uma parte do projeto (ex.: 30 placas de saída). Adicione as tarefas na ordem em que acontecem.</p>
+    <p class="hint">Cada item é uma parte do projeto. Quantidade indica quantas unidades serão produzidas. Adicione as tarefas na ordem em que acontecem.</p>
     <div id="npItemsList"></div>
-    <button class="btn ghost small" onclick="npAddItem()">+ Adicionar item</button>`,
+    <button class="np-add" onclick="npAddItem()"><i data-lucide="plus"></i> Adicionar item</button>`,
     `<button class="btn primary" onclick="saveNewItems(${id})">Salvar itens</button>`,
     `<button class="btn ghost small" onclick="openDetail(${id})">← Voltar ao projeto</button>`);
   renderItemsBuilder();
 }
 async function saveNewItems(id) {
-  const items = npItems.map(it => ({
-    name: it.name.trim(),
-    quantity: Math.max(1, Number(it.quantity) || 1),
-    ordered: !!it.ordered,
-    tasks: it.tasks.filter(t => t.name.trim() && t.section_id).map(t => ({ name: t.name.trim(), section_id: t.section_id }))
-  })).filter(it => it.name);
+  const items = npBuildItems();
   if (!items.length) return alert('Adicione pelo menos um item.');
   for (const it of items) {
     if (!it.tasks.length) return alert('O item "' + it.name + '" precisa de pelo menos uma tarefa com seção.');

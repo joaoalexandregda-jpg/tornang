@@ -1239,3 +1239,15 @@ body.worker-page .empty { color: #64748B; font-size: 14px; padding: 20px; }
 body.worker-page .wa-ava { width: 34px; height: 34px; border-radius: 50%; background: #0D9488; color: #fff; display: inline-flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 800; flex-shrink: 0; }
 body.worker-page #userName { display: inline-flex; align-items: center; }
 body.worker-page .panel h2 + div { min-height: 96px; }
+
+.jb-task-card { background: #CCFBF1; border-left: 4px solid #0D9488; border-radius: 10px; padding: 14px 16px; margin: 16px 0; }
+.jb-task-label { display: block; font-size: 12px; font-weight: 800; letter-spacing: .06em; text-transform: uppercase; color: #0F766E; margin-bottom: 8px; }
+.jb-task-row { display: flex; justify-content: space-between; gap: 12px; padding: 8px 0; font-size: 15px; }
+.jb-task-row + .jb-task-row { border-top: 1px solid rgba(13, 148, 136, .2); }
+.jb-task-row .lbl { font-size: 12px; font-weight: 700; text-transform: uppercase; color: #0F766E; }
+
+/* ===== Gerente: formulário de itens e tarefas ===== */
+.np-label { display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; letter-spacing: .08em; color: #7E8493; margin-bottom: 4px; }
+.np-add { display: inline-flex; align-items: center; gap: 6px; border: 1.5px dashed #0D9488; color: #0F766E; background: #F0FDFA; border-radius: 999px; padding: 6px 14px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.np-add:hover { background: #CCFBF1; }
+.np-add i { width: 14px; height: 14px; }
